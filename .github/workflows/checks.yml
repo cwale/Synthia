@@ -1,0 +1,76 @@
+name: Checks
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: checks-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  static:
+    name: Static checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Every module parses
+        run: |
+          set -e
+          for file in $(find js tools -name '*.js' -o -name '*.mjs') sw.js; do
+            node --check "$file"
+          done
+
+      - name: Manifest is valid and its icons exist
+        run: |
+          node -e "
+            const fs = require('fs');
+            const m = JSON.parse(fs.readFileSync('manifest.webmanifest', 'utf8'));
+            if (!m.icons || !m.icons.length) throw new Error('manifest has no icons');
+            for (const icon of m.icons) {
+              if (!fs.existsSync(icon.src)) throw new Error('missing icon file: ' + icon.src);
+            }
+          "
+
+      - name: Icons regenerate identically
+        run: |
+          node tools/make-icons.mjs
+          git diff --exit-code -- icons/ \
+            || (echo 'Committed icons differ from generated output. Run: node tools/make-icons.mjs' && exit 1)
+
+      - name: Service worker precaches every module
+        run: |
+          node -e "
+            const fs = require('fs');
+            const sw = fs.readFileSync('sw.js', 'utf8');
+            const listed = new Set(
+              [...sw.matchAll(/'\.\/([^']+)'/g)].map((m) => m[1]),
+            );
+            const walk = (dir) => fs.readdirSync(dir, { withFileTypes: true })
+              .flatMap((e) => (e.isDirectory() ? walk(dir + '/' + e.name) : [dir + '/' + e.name]));
+            const missing = walk('js').filter((f) => !listed.has(f));
+            if (missing.length) throw new Error('not precached in sw.js: ' + missing.join(', '));
+          "
+
+  smoke:
+    name: Browser smoke test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install Playwright
+        run: |
+          npm install --no-audit --no-fund
+          npx playwright install --with-deps chromium
+
+      - name: Run smoke test
+        run: node tools/smoke-test.mjs
