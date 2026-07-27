@@ -75,6 +75,7 @@ class App {
     this.synthStrip = engine.channel('synth', {
       reverb: settings.macros.reverb,
       delay: settings.macros.delay,
+      chorus: true,
     });
     this.drumStrip = engine.channel('drums', { reverb: 0.12, delay: 0.05 });
 
@@ -403,6 +404,9 @@ class App {
     // Drums want much less of both, or the kit turns to mush.
     this.drumStrip.setReverb(m.reverb * 0.35);
     this.drumStrip.setDelay(m.delay * 0.25);
+    this.synthStrip.setChorus(this.patch?.chorus ?? 0);
+    // More echo also means longer tails; a fixed feedback sounds static.
+    engine.fx.setFeedback(0.2 + m.delay * 0.4);
     for (const [key, knob] of this.knobs) knob.set(m[key]);
   }
 

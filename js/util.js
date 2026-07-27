@@ -105,13 +105,6 @@ export const platform = {
   isWebMidiBrowser: /WebMIDIBrowser/i.test(ua),
 };
 
-export function describePlatform() {
-  if (platform.hasWebMidi && platform.hasWebBluetooth) return 'full';
-  if (platform.hasWebMidi) return 'webmidi-only';
-  if (platform.hasWebBluetooth) return 'bluetooth-only';
-  return 'touch-only';
-}
-
 /** Short haptic tick, where supported. Silently ignored elsewhere. */
 export function haptic(ms = 8) {
   try { navigator.vibrate?.(ms); } catch { /* not supported */ }

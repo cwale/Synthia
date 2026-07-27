@@ -2,7 +2,7 @@
 
 import { clamp } from '../util.js';
 import { bus } from '../state.js';
-import { FxRack, makeDrive } from './fx.js';
+import { FxRack, makeDrive, makeChorus } from './fx.js';
 
 let sharedNoiseBuffer = null;
 
@@ -124,7 +124,7 @@ export class Engine {
    * A named strip with its own reverb/delay sends, so the synth can sit in a
    * big space while the drums stay dry and punchy.
    */
-  channel(name, { reverb = 0.25, delay = 0.1, gain = 1 } = {}) {
+  channel(name, { reverb = 0.25, delay = 0.1, gain = 1, chorus = false } = {}) {
     if (this.channels.has(name)) return this.channels.get(name);
 
     const ctx = this.ctx;
@@ -135,9 +135,19 @@ export class Engine {
     const delSend = ctx.createGain();
     delSend.gain.value = delay;
 
-    input.connect(this.mix);
-    input.connect(revSend).connect(this.fx.reverbIn);
-    input.connect(delSend).connect(this.fx.delayIn);
+    // An optional chorus sits inline, before the sends, so the widened signal
+    // is what feeds the reverb — that's what makes pads bloom.
+    let tail = input;
+    let chorusInsert = null;
+    if (chorus) {
+      chorusInsert = makeChorus(ctx);
+      input.connect(chorusInsert.input);
+      tail = chorusInsert.output;
+    }
+
+    tail.connect(this.mix);
+    tail.connect(revSend).connect(this.fx.reverbIn);
+    tail.connect(delSend).connect(this.fx.delayIn);
 
     const strip = {
       input,
@@ -146,6 +156,7 @@ export class Engine {
       setReverb: (v) => { revSend.gain.value = clamp(v, 0, 1.5); },
       setDelay: (v) => { delSend.gain.value = clamp(v, 0, 1.5); },
       setGain: (v) => { input.gain.value = clamp(v, 0, 2); },
+      setChorus: (v) => chorusInsert?.setMix(v),
     };
     this.channels.set(name, strip);
     return strip;

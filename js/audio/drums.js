@@ -87,10 +87,6 @@ export function panicDrums(ctx) {
   for (const shot of [...activeShots]) shot.kill(t);
 }
 
-export function activeDrumCount() {
-  return activeShots.size;
-}
-
 /* ---- individual voices --------------------------------------------------- */
 
 function biquad(shot, type, hz, q = 1) {
@@ -422,8 +418,6 @@ const VOICES = {
     return 0.4;
   },
 };
-
-export const DRUM_VOICE_TYPES = Object.keys(VOICES);
 
 /**
  * Fire a pad. `def` is a pad definition from a kit.

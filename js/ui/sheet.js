@@ -1,7 +1,6 @@
 /* Bottom sheet plus the form atoms used inside them. */
 
 import { h, qs } from './dom.js';
-import { clamp } from '../util.js';
 
 let current = null;
 
@@ -141,10 +140,6 @@ export function closeSheet() {
   current?._doClose?.();
 }
 
-export function activeSheet() {
-  return current;
-}
-
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') closeSheet();
 });
@@ -247,5 +242,3 @@ export function buttonRow(label, sub, buttonLabel, onClick, kind = '') {
 export function stepList(...items) {
   return h('div.steps', null, ...items.map((item) => h('div.step', { html: item })));
 }
-
-export { clamp };
