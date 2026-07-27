@@ -1,0 +1,27 @@
+{
+  "name": "Snythia — pocket synth",
+  "short_name": "Snythia",
+  "description": "Turn a Bluetooth MIDI keyboard into a synth and drum machine that plays through your phone.",
+  "id": "/snythia/",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "display_override": ["fullscreen", "standalone", "minimal-ui"],
+  "orientation": "any",
+  "background_color": "#08090d",
+  "theme_color": "#08090d",
+  "categories": ["music", "entertainment", "utilities"],
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    {
+      "name": "Bash mode",
+      "short_name": "Bash",
+      "description": "Hand the whole screen to a toddler",
+      "url": "./?mode=bash"
+    }
+  ]
+}

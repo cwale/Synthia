@@ -1,0 +1,9 @@
+# Only present if you add the Capacitor wrapper (see docs/IOS.md)
+node_modules/
+package-lock.json
+capacitor.config.json
+ios/
+android/
+
+.DS_Store
+*.log
