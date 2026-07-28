@@ -84,7 +84,7 @@ export class TakeRecorder {
     const now = new Date();
     const take = {
       id: uid(),
-      name: `Snythia ${now.toLocaleDateString()} ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`,
+      name: `Synthia ${now.toLocaleDateString()} ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`,
       blob,
       url: URL.createObjectURL(blob),
       duration: (Date.now() - this._startedAt) / 1000,

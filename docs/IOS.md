@@ -1,4 +1,4 @@
-# Wrapping Snythia as a native iOS app
+# Wrapping Synthia as a native iOS app
 
 Only needed if you want the physical keyboard working on an iPhone *without*
 asking anyone to install a third-party browser. Everything else about the app
@@ -6,7 +6,7 @@ already works in Safari.
 
 The web code needs **no changes**. `js/midi/native.js` already implements the
 bridge and installs the globals the shell calls into; the app picks the native
-transport automatically when `window.SnythiaNative` exists.
+transport automatically when `window.SynthiaNative` exists.
 
 ## What you need
 
@@ -20,7 +20,7 @@ transport automatically when `window.SnythiaNative` exists.
 The shell provides:
 
 ```js
-window.SnythiaNative = {
+window.SynthiaNative = {
   listDevices(): Promise<Array<{ id: string, name: string }>>,
   connect(id: string): Promise<void>,
   disconnect(): Promise<void>,
@@ -31,16 +31,16 @@ window.SnythiaNative = {
 The shell calls, for every incoming message:
 
 ```js
-window.__snythiaMidi([status, data1, data2])
+window.__synthiaMidi([status, data1, data2])
 ```
 
 and on any connection change:
 
 ```js
-window.__snythiaMidiStatus({ status: 'connected' | 'idle' | 'error', name: '…' })
+window.__synthiaMidiStatus({ status: 'connected' | 'idle' | 'error', name: '…' })
 ```
 
-Both `__snythia*` globals are installed by the web app, so the shell only has to
+Both `__synthia*` globals are installed by the web app, so the shell only has to
 call them. That is the entire interface.
 
 ## Setting up Capacitor
@@ -50,7 +50,7 @@ From the repo root:
 ```sh
 npm init -y
 npm install @capacitor/core @capacitor/ios
-npx cap init Snythia com.yourname.snythia --web-dir .
+npx cap init Synthia com.yourname.synthia --web-dir .
 npx cap add ios
 npx cap sync ios
 npx cap open ios
@@ -65,7 +65,7 @@ the app without it:
 
 ```xml
 <key>NSBluetoothAlwaysUsageDescription</key>
-<string>Snythia connects to your Bluetooth MIDI keyboard.</string>
+<string>Synthia connects to your Bluetooth MIDI keyboard.</string>
 ```
 
 To let audio keep playing when the screen locks, also set the background audio
@@ -73,7 +73,7 @@ mode and configure the audio session as `.playback` on launch.
 
 ## The plugin
 
-Create `ios/App/App/SnythiaMidiPlugin.swift`. This is the whole of it: CoreMIDI
+Create `ios/App/App/SynthiaMidiPlugin.swift`. This is the whole of it: CoreMIDI
 gives you every MIDI source the system knows about, including Bluetooth ones once
 they're paired, so the plugin does not need to speak BLE itself.
 
@@ -83,14 +83,14 @@ import Capacitor
 import CoreMIDI
 import CoreAudioKit
 
-@objc(SnythiaMidiPlugin)
-public class SnythiaMidiPlugin: CAPPlugin {
+@objc(SynthiaMidiPlugin)
+public class SynthiaMidiPlugin: CAPPlugin {
     private var client = MIDIClientRef()
     private var inputPort = MIDIPortRef()
     private var connected: MIDIEndpointRef?
 
     override public func load() {
-        MIDIClientCreateWithBlock("Snythia" as CFString, &client) { _ in }
+        MIDIClientCreateWithBlock("Synthia" as CFString, &client) { _ in }
 
         // MIDIDestinationCreateWithProtocol/MIDIInputPortCreateWithProtocol give
         // Universal MIDI Packets; the legacy API hands us plain MIDI 1.0 bytes,
@@ -114,7 +114,7 @@ public class SnythiaMidiPlugin: CAPPlugin {
                 let end = min(i + length, bytes.count)
                 let message = Array(bytes[i..<end]).map { Int($0) }
                 DispatchQueue.main.async {
-                    self.bridge?.eval(js: "window.__snythiaMidi(\(message))")
+                    self.bridge?.eval(js: "window.__synthiaMidi(\(message))")
                 }
                 i += length
             }
@@ -156,7 +156,7 @@ public class SnythiaMidiPlugin: CAPPlugin {
         MIDIObjectGetStringProperty(source, kMIDIPropertyDisplayName, &name)
         let deviceName = name?.takeRetainedValue() as String? ?? "MIDI"
         bridge?.eval(js: """
-            window.__snythiaMidiStatus({status:'connected',name:'\(deviceName)'})
+            window.__synthiaMidiStatus({status:'connected',name:'\(deviceName)'})
         """)
         call.resolve()
     }
@@ -164,7 +164,7 @@ public class SnythiaMidiPlugin: CAPPlugin {
     @objc func disconnect(_ call: CAPPluginCall) {
         if let previous = connected { MIDIPortDisconnectSource(inputPort, previous) }
         connected = nil
-        bridge?.eval(js: "window.__snythiaMidiStatus({status:'idle',name:''})")
+        bridge?.eval(js: "window.__synthiaMidiStatus({status:'idle',name:''})")
         call.resolve()
     }
 
@@ -188,8 +188,8 @@ shim loaded before `js/main.js` (or injected by the shell):
 
 ```js
 import { registerPlugin } from '@capacitor/core';
-const plugin = registerPlugin('SnythiaMidiPlugin');
-window.SnythiaNative = {
+const plugin = registerPlugin('SynthiaMidiPlugin');
+window.SynthiaNative = {
   listDevices: () => plugin.listDevices().then((r) => r.devices),
   connect: (id) => plugin.connect({ id }),
   disconnect: () => plugin.disconnect(),
@@ -198,7 +198,7 @@ window.SnythiaNative = {
 ```
 
 Also add the Objective-C bridging registration Capacitor requires — a
-`SnythiaMidiPlugin.m` declaring the plugin and its four methods — following the
+`SynthiaMidiPlugin.m` declaring the plugin and its four methods — following the
 [Capacitor iOS plugin guide](https://capacitorjs.com/docs/plugins/ios).
 
 ## Android, if you ever want it
@@ -214,12 +214,12 @@ Android PWA already has two working routes — see
 The transport is just an interface, so you can drive it from the browser console:
 
 ```js
-window.SnythiaNative = {
+window.SynthiaNative = {
   listDevices: async () => [{ id: '1', name: 'Fake Keyboard' }],
   connect: async () => {},
   disconnect: async () => {},
 };
 // Reload, connect from the Keyboard sheet, then send a middle C:
-window.__snythiaMidi([0x90, 60, 100]);
-window.__snythiaMidi([0x80, 60, 0]);
+window.__synthiaMidi([0x90, 60, 100]);
+window.__synthiaMidi([0x80, 60, 0]);
 ```

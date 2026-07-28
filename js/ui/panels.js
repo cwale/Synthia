@@ -819,7 +819,7 @@ function buildAbout(app, body) {
   ));
 
   body.append(group('About',
-    note('Snythia turns a Bluetooth MIDI controller into a synth and drum machine that plays through the phone. Every sound is generated live in the browser — there are no samples to download, and it works with no network once installed.'),
+    note('Synthia turns a Bluetooth MIDI controller into a synth and drum machine that plays through the phone. Every sound is generated live in the browser — there are no samples to download, and it works with no network once installed.'),
   ));
 }
 
@@ -871,7 +871,7 @@ export function openWelcomeSheet(app) {
   return openSheet({
     title: 'Welcome',
     build: (body) => {
-      body.append(group('Snythia in one minute',
+      body.append(group('Synthia in one minute',
         stepList(
           'Everything on screen plays right now — tap the keys and the pads.',
           'To use your keyboard, open <b>Keyboard</b> from the top-left chip and connect it.',

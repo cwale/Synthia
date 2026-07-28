@@ -98,9 +98,9 @@ await check('boots and starts audio', async () => {
   await page.waitForSelector('#app:not([hidden])', { timeout: 10000 });
   await page.waitForTimeout(700);
   const state = await page.evaluate(() => ({
-    ready: window.snythia.engine.ready,
-    ctx: window.snythia.engine.ctx?.state,
-    patch: window.snythia.patch?.id,
+    ready: window.synthia.engine.ready,
+    ctx: window.synthia.engine.ctx?.state,
+    patch: window.synthia.patch?.id,
   }));
   assert(state.ready, 'audio engine did not start');
   assert(state.patch, 'no patch loaded');
@@ -138,22 +138,22 @@ await check('pads carry their own colours', async () => {
 
 await check('playing keys allocates voices', async () => {
   const voices = await page.evaluate(async () => {
-    for (const note of [60, 64, 67]) window.snythia.keyOn(note, 0.9, 'test');
+    for (const note of [60, 64, 67]) window.synthia.keyOn(note, 0.9, 'test');
     await new Promise((r) => setTimeout(r, 200));
-    return window.snythia.synth.voiceCount;
+    return window.synthia.synth.voiceCount;
   });
   eq(voices, 3, 'voice count after a triad');
   await page.click('#panic-btn');
   await page.waitForTimeout(200);
-  eq(await page.evaluate(() => window.snythia.synth.voiceCount), 0, 'voices after panic');
+  eq(await page.evaluate(() => window.synthia.synth.voiceCount), 0, 'voices after panic');
 });
 
 await check('polyphony cap holds', async () => {
   const count = await page.evaluate(async () => {
-    window.snythia.synth.polyphony = 8;
-    for (let n = 40; n < 80; n++) window.snythia.keyOn(n, 0.9, 'test');
+    window.synthia.synth.polyphony = 8;
+    for (let n = 40; n < 80; n++) window.synthia.keyOn(n, 0.9, 'test');
     await new Promise((r) => setTimeout(r, 200));
-    return window.snythia.synth.voiceCount;
+    return window.synthia.synth.voiceCount;
   });
   assert(count <= 8, `40 notes held exceeded the cap of 8: ${count}`);
   await page.click('#panic-btn');
@@ -201,12 +201,12 @@ await check('decodes BLE-MIDI packets', async () => {
 
 await check('screen keyboard follows the hardware octave', async () => {
   const res = await page.evaluate(async () => {
-    const kb = window.snythia.keyboard;
+    const kb = window.synthia.keyboard;
     const target = kb.lowNote - 24;
-    window.snythia.keyOn(target, 0.9, 'midi');
+    window.synthia.keyOn(target, 0.9, 'midi');
     const lit = document.querySelector(`.key[data-note="${target}"]`)?.classList.contains('is-down');
     const covers = kb.covers(target);
-    window.snythia.keyOff(target, 'midi');
+    window.synthia.keyOff(target, 'midi');
     return { lit, covers };
   });
   assert(res.covers, 'window did not follow a note below the visible range');
@@ -218,8 +218,8 @@ await check('bash mode quantises to its scale', async () => {
   await page.waitForSelector('#bash:not([hidden])', { timeout: 5000 });
   await page.waitForTimeout(400);
   const notes = await page.evaluate(() => {
-    const out = [61, 63, 66, 68, 70].map((n) => window.snythia.bash.hardwareNoteOn(n, 0.8));
-    [61, 63, 66, 68, 70].forEach((n) => window.snythia.bash.hardwareNoteOff(n));
+    const out = [61, 63, 66, 68, 70].map((n) => window.synthia.bash.hardwareNoteOn(n, 0.8));
+    [61, 63, 66, 68, 70].forEach((n) => window.synthia.bash.hardwareNoteOff(n));
     return out;
   });
   const pentatonic = [0, 2, 4, 7, 9];
@@ -238,7 +238,7 @@ await check('bash mode needs a long hold to exit', async () => {
   await page.mouse.up();
   await page.waitForTimeout(300);
   assert(
-    await page.evaluate(() => window.snythia.mode === 'bash'),
+    await page.evaluate(() => window.synthia.mode === 'bash'),
     'a 0.9s hold escaped bash mode',
   );
 
@@ -248,7 +248,7 @@ await check('bash mode needs a long hold to exit', async () => {
   await page.mouse.up();
   await page.waitForTimeout(400);
   assert(
-    await page.evaluate(() => window.snythia.mode === 'play'),
+    await page.evaluate(() => window.synthia.mode === 'play'),
     'a 3.4s hold did not exit bash mode',
   );
 });
@@ -290,8 +290,8 @@ for (const [name, size] of [
 await check('settings persist across a reload', async () => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.evaluate(() => {
-    window.snythia.setPatch('rubber-bass');
-    window.snythia.setTempo(140);
+    window.synthia.setPatch('rubber-bass');
+    window.synthia.setTempo(140);
   });
   await page.waitForTimeout(700);
   await page.reload({ waitUntil: 'networkidle' });

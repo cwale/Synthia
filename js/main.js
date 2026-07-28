@@ -1,4 +1,4 @@
-/* Snythia — application controller.
+/* Synthia — application controller.
 
    Boot order matters: audio can only start from a user gesture, so nothing is
    constructed until the splash screen is tapped. After that the app wires the
@@ -731,7 +731,7 @@ class App {
    ========================================================================== */
 
 const app = new App();
-window.snythia = app;   // handy in the console, and used by the test harness
+window.synthia = app;   // handy in the console, and used by the test harness
 
 function describeSplash() {
   const hint = qs('#splash-hint');

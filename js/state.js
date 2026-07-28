@@ -2,7 +2,7 @@
 
 import { debounce } from './util.js';
 
-const STORAGE_KEY = 'snythia.settings.v2';
+const STORAGE_KEY = 'synthia.settings.v2';
 
 export const defaults = {
   version: 2,

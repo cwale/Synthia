@@ -1,8 +1,8 @@
 {
-  "name": "Snythia — pocket synth",
-  "short_name": "Snythia",
+  "name": "Synthia — pocket synth",
+  "short_name": "Synthia",
   "description": "Turn a Bluetooth MIDI keyboard into a synth and drum machine that plays through your phone.",
-  "id": "/snythia/",
+  "id": "/synthia/",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

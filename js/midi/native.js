@@ -2,7 +2,7 @@
 
    The contract, deliberately tiny so the Swift/Kotlin side stays short:
 
-     window.SnythiaNative = {
+     window.SynthiaNative = {
        listDevices(): Promise<Array<{id, name}>>,
        connect(id): Promise<void>,
        disconnect(): Promise<void>,
@@ -11,11 +11,11 @@
 
    The shell pushes incoming MIDI by calling, on every message:
 
-     window.__snythiaMidi([status, data1, data2])
+     window.__synthiaMidi([status, data1, data2])
 
    ...and reports connection changes with:
 
-     window.__snythiaMidiStatus({ status: 'connected'|'idle'|'error', name })
+     window.__synthiaMidiStatus({ status: 'connected'|'idle'|'error', name })
 
    Both globals are installed by this module, so the shell only has to call
    them. Everything else in the app is identical across platforms. */
@@ -29,12 +29,12 @@ export class NativeMidiTransport {
     this.onStatus = null;
     this._name = '';
 
-    window.__snythiaMidi = (bytes) => {
+    window.__synthiaMidi = (bytes) => {
       if (!bytes || !bytes.length) return;
       this.onMessage?.(Array.from(bytes), performance.now());
     };
 
-    window.__snythiaMidiStatus = (info = {}) => {
+    window.__synthiaMidiStatus = (info = {}) => {
       this._name = info.name || this._name;
       this.status = info.status || 'connected';
       this.onStatus?.({ kind: this.kind, status: this.status, detail: '', name: this._name });
@@ -42,7 +42,7 @@ export class NativeMidiTransport {
   }
 
   get available() {
-    return !!window.SnythiaNative;
+    return !!window.SynthiaNative;
   }
 
   get deviceName() {
@@ -56,7 +56,7 @@ export class NativeMidiTransport {
   async listDevices() {
     if (!this.available) return [];
     try {
-      return (await window.SnythiaNative.listDevices()) || [];
+      return (await window.SynthiaNative.listDevices()) || [];
     } catch {
       return [];
     }
@@ -65,7 +65,7 @@ export class NativeMidiTransport {
   /** Opens the OS Bluetooth-MIDI pairing sheet, if the shell provides one. */
   async showPairingUI() {
     try {
-      await window.SnythiaNative.showPairingUI?.();
+      await window.SynthiaNative.showPairingUI?.();
       return true;
     } catch {
       return false;
@@ -83,7 +83,7 @@ export class NativeMidiTransport {
       this.onStatus?.({ kind: this.kind, status: 'waiting', detail: 'No MIDI devices', name: '' });
       return null;
     }
-    await window.SnythiaNative.connect(target.id);
+    await window.SynthiaNative.connect(target.id);
     this._id = target.id;
     this._name = target.name;
     this.status = 'connected';
@@ -93,7 +93,7 @@ export class NativeMidiTransport {
 
   disconnect() {
     try {
-      window.SnythiaNative?.disconnect?.();
+      window.SynthiaNative?.disconnect?.();
     } catch {
       /* ignore */
     }

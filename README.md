@@ -1,4 +1,4 @@
-# Snythia
+# Synthia
 
 Synth sound box for your Bluetooth midi device.
 

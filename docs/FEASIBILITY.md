@@ -1,6 +1,6 @@
 # Feasibility: a phone-based synth for a Bluetooth MIDI keyboard
 
-Scoping notes for Snythia, written before the build and updated after it.
+Scoping notes for Synthia, written before the build and updated after it.
 Target hardware: **M-VAVE SMK-37** (sold as "M-Wave Elite / Elite Pro") — 37
 velocity-sensitive keys, 16 velocity + aftertouch pads, 8 encoders, 4 faders,
 pitch and mod wheels, BLE MIDI 5.0, USB-C, TRS MIDI out.
@@ -37,7 +37,7 @@ Three ways around it, in order of effort:
 1. **Web MIDI Browser** (free, Takashi Mizuhiki) — a WebKit browser that ships a
    Web MIDI shim plus the iOS Bluetooth-MIDI pairing sheet. Open the app's URL
    inside it and the keyboard just works. Zero build effort.
-2. **Bluefy** (free) — adds Web Bluetooth to iOS. Snythia's BLE-MIDI transport
+2. **Bluefy** (free) — adds Web Bluetooth to iOS. Synthia's BLE-MIDI transport
    talks the GATT MIDI service directly, so this route needs nothing from Apple's
    MIDI stack at all.
 3. **Native wrapper** — a Capacitor shell with ~150 lines of Swift over CoreMIDI.
@@ -65,7 +65,7 @@ running status allowed and timestamps optionally omitted for messages sharing th
 previous one. `decodeBleMidiPacket()` handles single messages, running status,
 several messages per packet, and skips sysex.
 
-A third transport (`native.js`) exposes a tiny `window.SnythiaNative` contract for
+A third transport (`native.js`) exposes a tiny `window.SynthiaNative` contract for
 the wrapper builds. The app above the transport layer does not know or care which
 one is in use.
 
