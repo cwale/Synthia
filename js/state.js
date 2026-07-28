@@ -1,6 +1,7 @@
 /* Persistent settings plus a tiny event bus. */
 
 import { debounce } from './util.js';
+import { defaultMacros, DEFAULT_CC_MAP } from './audio/macros.js';
 
 const STORAGE_KEY = 'synthia.settings.v2';
 
@@ -20,7 +21,7 @@ export const defaults = {
     padRangeHi: 51,
   },
   padMap: {},                     // "channel:note" -> pad index, filled by Learn
-  ccMap: {},                      // cc number -> macro name, filled by Learn
+  ccMap: { ...DEFAULT_CC_MAP },   // cc number -> macro name; Learn overwrites
 
   keyboard: {
     baseNote: 36,                 // leftmost key of the on-screen keyboard
@@ -38,7 +39,7 @@ export const defaults = {
 
   pads: { kitId: 'studio', layout: 'mpc' },   // layout: mpc = pad 1 bottom-left
 
-  macros: { cutoff: 0.72, resonance: 0.18, reverb: 0.3, delay: 0.12 },
+  macros: defaultMacros(),
 
   master: { volume: 0.85, limiter: true, polyphony: 12 },
 

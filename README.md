@@ -83,8 +83,32 @@ Worth knowing: a 37-key controller starting at C2 sends notes 36–72, which
 overlaps the usual pad range of 36–51. Keys and pads therefore have to be told
 apart by MIDI channel, not by note — hence the channel-split default.
 
-Pitch bend, mod wheel (CC1) and sustain (CC64) work out of the box. The eight
-encoders and four faders can be learned onto the four macro knobs.
+Some controllers don't number their pads contiguously — the SMK-37 runs 36–47
+and then drops to 16–19 for the last four. Any note arriving on a channel that
+Learn has already established as a pad channel is folded into the pad range, so
+those outliers land on pads 13–16 rather than playing the synth. If one still
+lands in the wrong slot, **Mapping › Individual pads** lets you tap a slot and
+hit that pad to fix it on its own.
+
+## Knobs and faders
+
+Set up for the SMK-37 out of the box:
+
+| Control | CC | Drives |
+|---|---|---|
+| Fader 1–4 | 64–67 | Tone, Bite, Space, Echo — the four on-screen knobs |
+| K1–K8 | 48–55 | Attack, Release, Sweep, Wobble rate, Wobble, Grit, Width, Volume |
+
+Anything can be reassigned under **Mapping › Knobs and faders**: tap *Learn* on a
+row, move the control, done.
+
+One trap worth knowing about, since it bites on this hardware: the faders sit on
+**CC64–67, which the MIDI spec reserves for the pedals** — CC64 *is* the sustain
+pedal. A control mapped in this app deliberately overrides the spec meaning for
+its CC number, so fader 1 sweeps the filter instead of jamming sustain on. If you
+unmap it, CC64 goes back to behaving as a pedal.
+
+Pitch bend and the mod wheel (CC1) work out of the box.
 
 ## A note on latency
 

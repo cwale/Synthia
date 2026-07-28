@@ -6,6 +6,7 @@
    whose factory mapping we can't know in advance. */
 
 import { bus, settings, commit } from '../state.js';
+import { MACRO_BY_KEY } from '../audio/macros.js';
 import { noteLabel, platform } from '../util.js';
 import { WebMidiTransport } from './webmidi.js';
 import { BleMidiTransport } from './blemidi.js';
@@ -200,7 +201,19 @@ export class MidiHub {
     if (learned != null) return { target: 'pad', padIndex: learned };
 
     const s = settings.split;
-    if (s.mode === 'padmap') return { target: 'key' };   // only learned pads count
+    if (s.mode === 'padmap') {
+      /* Controllers don't always number their pads contiguously — the SMK-37
+         runs 36..47 and then drops to 16..19 for the last four. Rather than
+         letting those fall through to the synth, anything arriving on a channel
+         that Learn already established as a pad channel is folded into the pad
+         range relative to the lowest note learned. */
+      if (this._padChannels().includes(channel)) {
+        const base = this._lowestPadNote();
+        const idx = base == null ? note : note - base;
+        return { target: 'pad', padIndex: ((idx % 16) + 16) % 16 };
+      }
+      return { target: 'key' };
+    }
 
     if (s.mode === 'channel') {
       if (channel === s.padChannel) {
@@ -222,9 +235,33 @@ export class MidiHub {
     return { target: 'key' };
   }
 
+  /** Channels that the learned pad map covers. */
+  _padChannels() {
+    if (this._padChannelCache) return this._padChannelCache;
+    const set = new Set();
+    for (const key of Object.keys(settings.padMap)) {
+      set.add(Number(key.split(':')[0]));
+    }
+    this._padChannelCache = [...set];
+    return this._padChannelCache;
+  }
+
+  _lowestPadNote() {
+    const notes = Object.keys(settings.padMap).map((k) => Number(k.split(':')[1]));
+    return notes.length ? Math.min(...notes) : null;
+  }
+
+  _invalidatePadCache() {
+    this._padChannelCache = null;
+  }
+
   _noteOn(channel, note, velocity) {
     if (this.learn?.mode === 'pads') {
       this._learnPad(channel, note);
+      return;
+    }
+    if (this.learn?.mode === 'pad-one') {
+      this._learnOnePad(channel, note);
       return;
     }
 
@@ -239,7 +276,7 @@ export class MidiHub {
   }
 
   _noteOff(channel, note) {
-    if (this.learn?.mode === 'pads') return;
+    if (this.learn?.mode === 'pads' || this.learn?.mode === 'pad-one') return;
     this._activeNotes.delete(`${channel}:${note}`);
     const { target, padIndex } = this.classify(channel, note);
     if (target === 'pad') bus.emit('midi:pad-off', { padIndex, note, channel });
@@ -256,6 +293,17 @@ export class MidiHub {
       return;
     }
 
+    /* A mapped control wins over the built-in meaning of its CC number. This
+       matters on real hardware: the M-VAVE's four faders sit on CC64-67, which
+       the MIDI spec reserves for the sustain, portamento, sostenuto and soft
+       pedals. Checking the map first is what stops fader 1 latching sustain. */
+    const macro = settings.ccMap[cc];
+    if (macro && MACRO_BY_KEY.has(macro)) {
+      bus.emit('midi:macro', { macro, value: value / 127, cc });
+      bus.emit('midi:cc', { cc, value, channel });
+      return;
+    }
+
     if (cc === 64) {
       bus.emit('midi:sustain', { on: value >= 64 });
       return;
@@ -269,8 +317,6 @@ export class MidiHub {
       return;
     }
 
-    const macro = settings.ccMap[cc];
-    if (macro) bus.emit('midi:macro', { macro, value: value / 127, cc });
     bus.emit('midi:cc', { cc, value, channel });
   }
 
@@ -302,6 +348,7 @@ export class MidiHub {
       this.learn.collected.forEach((key, i) => { map[key] = i; });
       settings.padMap = map;
       settings.split.mode = 'padmap';
+      this._invalidatePadCache();
       commit('padMap');
       const count = this.learn.collected.length;
       this.learn = null;
@@ -318,6 +365,29 @@ export class MidiHub {
     bus.emit('midi:learn', { done: true, cancelled: true });
   }
 
+  /**
+   * Learn one pad in isolation. Useful when a bulk Learn caught most of them
+   * and a few outliers need filling in by hand.
+   */
+  startPadLearnOne(padIndex) {
+    this.learn = { mode: 'pad-one', padIndex };
+    bus.emit('midi:learn', { mode: 'pad-one', padIndex });
+  }
+
+  _learnOnePad(channel, note) {
+    const { padIndex } = this.learn;
+    // Drop any previous owner of this slot so two notes can't claim one pad.
+    for (const [key, idx] of Object.entries(settings.padMap)) {
+      if (idx === padIndex) delete settings.padMap[key];
+    }
+    settings.padMap[`${channel}:${note}`] = padIndex;
+    if (settings.split.mode !== 'padmap') settings.split.mode = 'padmap';
+    this._invalidatePadCache();
+    commit('padMap');
+    this.learn = null;
+    bus.emit('midi:learn', { mode: 'pad-one', done: true, padIndex, note, channel });
+  }
+
   startCCLearn(target) {
     this.learn = { mode: 'cc', target };
     bus.emit('midi:learn', { mode: 'cc', target });
@@ -325,6 +395,7 @@ export class MidiHub {
 
   clearPadMap() {
     settings.padMap = {};
+    this._invalidatePadCache();
     if (settings.split.mode === 'padmap') settings.split.mode = 'channel';
     commit('padMap');
   }
