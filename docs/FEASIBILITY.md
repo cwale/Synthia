@@ -79,11 +79,21 @@ Android Chrome with `latencyHint: 'interactive'`, and similar in iOS WKWebView.
 Under about 30 ms feels immediate; up to ~50 ms is fine for pads and chords and
 slightly soft for fast runs.
 
-**Bluetooth audio output** adds 100–200 ms on top, and that is the killer. It has
-nothing to do with this app or with the web platform — it's the A2DP codec
-pipeline. A Bluetooth speaker makes playing in time genuinely hard. The phone's
-own speaker or wired headphones are the answer, and the app warns once on first
-run if the measured figure is high.
+**Bluetooth audio output** adds 100–200 ms on top with the codecs most devices
+actually negotiate, and that is the killer. It has nothing to do with this app or
+with the web platform — it's the A2DP codec pipeline. SBC and AAC land at
+150–250 ms, aptX around 70–130 ms, LDAC worse than any of them. A Bluetooth
+speaker makes playing in time genuinely hard, and the app warns once on first run
+if the measured figure is high.
+
+The exception is **LE Audio with the LC3 codec**, introduced in Bluetooth 5.2,
+which gets to 20–30 ms and is genuinely playable. It is not something the app can
+opt into: LE Audio is an optional part of the spec, both devices have to
+implement it, and codec negotiation belongs to the operating system — there is no
+Web Audio API for choosing an output codec, and `setSinkId` doesn't help. So this
+stays a hardware question, and `outputLatency` is how a user finds out where they
+stand. Running the keyboard and the speaker at once also puts two links on one
+2.4 GHz radio, which can cause stutter with high-bitrate codecs.
 
 BLE MIDI *input* latency is small by comparison, typically under 10 ms.
 
