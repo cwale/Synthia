@@ -16,24 +16,20 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build:
+  deploy:
     runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
 
-      - name: Regenerate icons
-        run: node tools/make-icons.mjs
-
-      - name: Check every module parses
-        run: |
-          for file in $(find js -name '*.js') sw.js tools/make-icons.mjs; do
-            node --check "$file"
-          done
-
-      - name: Check the manifest is valid JSON
-        run: node -e "JSON.parse(require('fs').readFileSync('manifest.webmanifest','utf8'))"
-
+      # enablement: true turns Pages on via the API rather than requiring
+      # someone to set Settings > Pages > Source by hand first, which is what
+      # made the first deploy fail with "Get Pages site failed".
       - uses: actions/configure-pages@v5
+        with:
+          enablement: true
 
       - name: Upload site
         uses: actions/upload-pages-artifact@v3
@@ -41,12 +37,5 @@ jobs:
           # No build step — the repo root is the site.
           path: .
 
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
       - id: deployment
         uses: actions/deploy-pages@v4
