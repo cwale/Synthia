@@ -21,6 +21,7 @@ const SHELL = [
   './js/audio/drums.js',
   './js/audio/presets.js',
   './js/audio/kits.js',
+  './js/audio/macros.js',
   './js/audio/clock.js',
   './js/audio/groove.js',
   './js/audio/recorder.js',
