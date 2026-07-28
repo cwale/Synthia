@@ -89,11 +89,57 @@ encoders and four faders can be learned onto the four macro knobs.
 ## A note on latency
 
 The app shows its measured output latency in **Settings › Audio**. Expect
-20–40 ms, which feels immediate.
+20–40 ms from the phone's own speaker or a wired output, which feels immediate.
 
-A **Bluetooth speaker or Bluetooth headphones will add 100–200 ms** on top, and
-that is enough to make playing in time genuinely difficult. This is a property of
-Bluetooth audio, not of this app. Use the phone's speaker or wired headphones.
+## Playing through a Bluetooth speaker
+
+This works, and needs no setup. The phone holds two Bluetooth links at once — a
+BLE connection to the keyboard and a Classic A2DP link to the speaker. They are
+different protocols sharing one radio, and phones do this routinely. Whatever the
+operating system has set as the default output is where the sound goes.
+
+Whether it is *playable* is a different question, and depends entirely on the
+codec the two devices negotiate:
+
+| Codec | Added latency |
+|---|---|
+| SBC (the universal fallback) | 150–250 ms |
+| AAC | 150–200 ms |
+| aptX | 70–130 ms |
+| aptX Low Latency | 30–40 ms |
+| LDAC | 200 ms+ |
+| **LC3 / LE Audio** | **20–30 ms** |
+
+**Bluetooth 5.2 does not by itself mean low latency.** 5.2 is the version that
+introduced LE Audio and the LC3 codec, which is the row that would make this
+genuinely good — but LE Audio is an *optional* part of the spec. Plenty of
+speakers are certified 5.2 for the connection improvements while still carrying
+audio over ordinary A2DP/SBC. Both ends have to implement it, the phone needs
+Android 13 or later (sometimes with a switch in Developer Options), and Apple's
+LE Audio support is aimed mostly at hearing devices and AirPods rather than
+third-party speakers.
+
+To find out what your own gear negotiates, connect the speaker and read the
+figure in **Settings › Audio**. On Android that number generally includes the
+Bluetooth output path: under about 30 ms means LE Audio is working, while
+150 ms or more means you are on SBC.
+
+In practice this splits cleanly by what you're doing. For **Bash mode, use the
+Bluetooth speaker** — latency is irrelevant when the point is that hitting things
+makes a fun noise, and louder is better. For **playing yourself, latency is the
+whole game**, and 150 ms feels like the instrument is arguing with you; a USB-C
+to 3.5 mm dongle into powered speakers, or a small USB-C audio interface, is the
+reliable way to get loud and tight at once.
+
+No software can fix this, here or anywhere else: a sound cannot be played before
+the key is pressed, so compensation only helps when aligning a recording, never
+for live monitoring. One consolation is that everything is delayed equally, so
+the arpeggiator and the backing beat stay perfectly in sync with each other — it
+is only the gap between your finger and the sound that suffers.
+
+If you get audio stutter or dropped notes with both connected, that is the two
+links contending for the same 2.4 GHz radio, and it is worst with greedy codecs.
+Forcing SBC in Android's Developer Options usually settles it.
 
 ## Playing without hardware
 
