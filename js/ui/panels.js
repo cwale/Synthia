@@ -11,6 +11,7 @@ import { platform, noteLabel, SCALES, pitchClassName, formatTime } from '../util
 import { PRESETS, PRESET_CATEGORIES, BASH_SOUNDS } from '../audio/presets.js';
 import { KITS, getKit } from '../audio/kits.js';
 import { PATTERNS } from '../audio/groove.js';
+import { MACRO_TARGETS } from '../audio/macros.js';
 
 const STATUS_TEXT = {
   idle: 'Not connected',
@@ -321,6 +322,9 @@ function buildMapping(app, body, sheet) {
     ));
   }
 
+  body.append(buildPadSlots(app, sheet));
+  body.append(buildControlMap(app, sheet));
+
   body.append(group('Pad layout on screen',
     segRow('Pad 1 sits', 'Match whatever your controller prints on the pads.', [
       { label: 'Bottom left', value: 'mpc' },
@@ -392,6 +396,89 @@ function buildMapping(app, body, sheet) {
 /* ==========================================================================
    MIDI monitor
    ========================================================================== */
+
+/**
+ * The 16 pad slots with whatever note currently drives them, so a bulk Learn
+ * that missed a few can be patched up one pad at a time.
+ */
+function buildPadSlots(app, sheet) {
+  const byIndex = new Map();
+  for (const [key, idx] of Object.entries(settings.padMap)) {
+    const [ch, note] = key.split(':').map(Number);
+    byIndex.set(idx, { ch, note });
+  }
+
+  const learning = app.hub.learn?.mode === 'pad-one' ? app.hub.learn.padIndex : null;
+  const grid = h('div', {
+    style: {
+      display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(76px,1fr))', gap: '6px',
+    },
+  });
+
+  for (let i = 0; i < 16; i++) {
+    const found = byIndex.get(i);
+    const isLearning = learning === i;
+    grid.append(h('button', {
+      style: {
+        padding: '8px 6px',
+        borderRadius: '9px',
+        background: isLearning ? 'var(--panel-2)' : 'var(--panel)',
+        boxShadow: isLearning
+          ? 'var(--bevel), inset 0 0 0 1.5px var(--accent-2)'
+          : 'var(--bevel)',
+        textAlign: 'left',
+      },
+      onclick: () => {
+        if (isLearning) app.hub.cancelLearn();
+        else app.hub.startPadLearnOne(i);
+        sheet.refresh();
+      },
+    },
+      h('div', { style: { fontSize: '9px', fontWeight: '700', color: 'var(--ink-3)' } }, `PAD ${i + 1}`),
+      h('div', {
+        style: {
+          fontSize: '12px',
+          fontWeight: '650',
+          color: isLearning ? 'var(--accent-2)' : found ? 'var(--ink)' : 'var(--ink-3)',
+        },
+      }, isLearning ? 'hit it…' : found ? `${noteLabel(found.note)} ch${found.ch}` : 'not set'),
+    ));
+  }
+
+  return group('Individual pads', grid,
+    note('Tap a slot, then hit that pad on the keyboard to assign it. Handy when a few pads sit outside the main run — some controllers number the last four well below the rest.'));
+}
+
+/** Which CC drives which parameter, with per-row Learn. */
+function buildControlMap(app, sheet) {
+  const ccFor = new Map();
+  for (const [cc, target] of Object.entries(settings.ccMap)) ccFor.set(target, Number(cc));
+
+  const learningTarget = app.hub.learn?.mode === 'cc' ? app.hub.learn.target : null;
+  const rows = [];
+
+  for (const target of MACRO_TARGETS) {
+    const cc = ccFor.get(target.key);
+    const isLearning = learningTarget === target.key;
+    rows.push(row(
+      target.name,
+      isLearning
+        ? 'Move the knob or fader you want…'
+        : `${target.blurb}${cc != null ? ` — CC ${cc}` : ' — unassigned'}`,
+      h('button.btn.btn--ghost', {
+        style: { padding: '8px 13px', fontSize: '12px', flex: '0 0 auto' },
+        onclick: () => {
+          if (isLearning) app.hub.cancelLearn();
+          else app.hub.startCCLearn(target.key);
+          sheet.refresh();
+        },
+      }, isLearning ? 'Cancel' : cc != null ? 'Remap' : 'Learn'),
+    ));
+  }
+
+  return group('Knobs and faders', ...rows,
+    note('Set up for an M-VAVE SMK-37 out of the box: faders 1–4 drive the four on-screen knobs, and K1–K8 drive the rest. Learn overrides any of it. A control mapped here always wins over the MIDI spec’s meaning for that CC number — which matters because the faders sit on CC64–67, where CC64 is officially the sustain pedal.'));
+}
 
 function buildMonitor(app, body) {
   const list = h('div.monitor');
@@ -658,7 +745,7 @@ function buildAudioSettings(app, body, sheet) {
       onInput: (v) => {
         settings.master.volume = v;
         commit('master');
-        app.engine.setMasterVolume(v);
+        app.applyMacros();
       },
     }),
     switchRow('Safety limiter', 'Stops loud chords clipping the speaker. Leave this on.',

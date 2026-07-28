@@ -180,6 +180,106 @@ await check('routes keys and pads by channel', async () => {
   await page.click('#panic-btn');
 });
 
+await check('faders on CC64-67 drive macros, not the sustain pedal', async () => {
+  const res = await page.evaluate(async () => {
+    const { midiHub } = await import('./js/midi/hub.js');
+    const { bus } = await import('./js/state.js');
+    const fake = { kind: 'webmidi', label: 'Test', status: 'connected', deviceName: 'Test', available: true, disconnect() {} };
+    midiHub.active = fake;
+    const send = (b) => midiHub._onMessage(b, performance.now(), fake);
+    let sustainEvents = 0;
+    bus.on('midi:sustain', () => sustainEvents++);
+
+    // Fader 1 swept well past the halfway point that would latch a pedal.
+    send([0xb0, 64, 120]);
+    send([0xb0, 65, 100]);
+    send([0xb0, 66, 90]);
+    send([0xb0, 67, 40]);
+    await new Promise((r) => setTimeout(r, 150));
+    return {
+      sustainEvents,
+      macros: { ...window.synthia.engine && window.synthia.synth.macros },
+    };
+  });
+  console.log('        ', JSON.stringify(res));
+  assert(res.sustainEvents === 0, 'CC64 still triggered the sustain pedal');
+  assert(Math.abs(res.macros.cutoff - 120 / 127) < 0.02, `fader 1 did not set cutoff: ${res.macros.cutoff}`);
+  assert(Math.abs(res.macros.delay - 40 / 127) < 0.02, `fader 4 did not set delay: ${res.macros.delay}`);
+});
+
+await check('K1-K8 drive the extended macros', async () => {
+  const res = await page.evaluate(async () => {
+    const { midiHub } = await import('./js/midi/hub.js');
+    const fake = { kind: 'webmidi', label: 'Test', status: 'connected', deviceName: 'Test', available: true, disconnect() {} };
+    midiHub.active = fake;
+    const send = (b) => midiHub._onMessage(b, performance.now(), fake);
+    send([0xb5, 48, 64]);   // K1 on channel 6, as the hardware sends it
+    send([0xb5, 53, 100]);  // K6 -> drive
+    await new Promise((r) => setTimeout(r, 150));
+    return { ...window.synthia.synth.macros };
+  });
+  assert(Math.abs(res.attack - 64 / 127) < 0.02, `K1 did not set attack: ${res.attack}`);
+  assert(Math.abs(res.drive - 100 / 127) < 0.02, `K6 did not set drive: ${res.drive}`);
+});
+
+await check('stray pads still land on the pad grid', async () => {
+  const res = await page.evaluate(async () => {
+    const { midiHub } = await import('./js/midi/hub.js');
+    const { settings, commit } = await import('./js/state.js');
+    const { bus } = await import('./js/state.js');
+    // Mimic a Learn that captured 12 pads on channel 2 at notes 36..47.
+    settings.padMap = {};
+    for (let i = 0; i < 12; i++) settings.padMap[`2:${36 + i}`] = i;
+    settings.split.mode = 'padmap';
+    midiHub._invalidatePadCache();
+    commit('padMap');
+
+    const fake = { kind: 'webmidi', label: 'Test', status: 'connected', deviceName: 'Test', available: true, disconnect() {} };
+    midiHub.active = fake;
+    const send = (b) => midiHub._onMessage(b, performance.now(), fake);
+    const pads = [];
+    const keys = [];
+    bus.on('midi:pad-on', ({ padIndex }) => pads.push(padIndex));
+    bus.on('midi:key-on', ({ note }) => keys.push(note));
+
+    // The four outliers this hardware sends: E0, F0, F#0, G0 on channel 2.
+    for (const n of [16, 17, 18, 19]) send([0x91, n, 100]);
+    // A real key on channel 1 must still be a key.
+    send([0x90, 60, 100]);
+    await new Promise((r) => setTimeout(r, 200));
+    for (const n of [16, 17, 18, 19]) send([0x81, n, 0]);
+    send([0x80, 60, 0]);
+    return { pads, keys };
+  });
+  console.log('        ', JSON.stringify(res));
+  eq(res.pads, [12, 13, 14, 15], 'outlier pads should fill slots 13-16');
+  eq(res.keys, [60], 'channel 1 notes must still play the synth');
+  await page.click('#panic-btn');
+});
+
+await check('every patch can sound without erroring', async () => {
+  const res = await page.evaluate(async () => {
+    const { PRESETS } = await import('./js/audio/presets.js');
+    const bad = [];
+    for (const preset of PRESETS) {
+      try {
+        window.synthia.setPatch(preset.id);
+        window.synthia.keyOn(60, 0.9, 'test');
+        window.synthia.keyOn(67, 0.9, 'test');
+        await new Promise((r) => setTimeout(r, 25));
+        window.synthia.keyOff(60, 'test');
+        window.synthia.keyOff(67, 'test');
+      } catch (err) {
+        bad.push(`${preset.id}: ${err.message}`);
+      }
+    }
+    return { count: PRESETS.length, bad };
+  });
+  console.log(`         played ${res.count} patches`);
+  assert(res.bad.length === 0, `patches threw: ${res.bad.join('; ')}`);
+  await page.click('#panic-btn');
+});
+
 await check('decodes BLE-MIDI packets', async () => {
   const res = await page.evaluate(async () => {
     const { decodeBleMidiPacket } = await import('./js/midi/blemidi.js');

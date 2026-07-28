@@ -4,6 +4,9 @@
 
 import { clamp, noteToFreq } from '../util.js';
 import { noiseBuffer } from './engine.js';
+import {
+  shapeAmpEnvelope, filterEnvScale, lfoRateScale, lfoDepthBoost, widthScale,
+} from './macros.js';
 
 function cancelAndHold(param, t) {
   if (typeof param.cancelAndHoldAtTime === 'function') {
@@ -36,7 +39,19 @@ export class SynthVoice {
 
     this.panner = ctx.createStereoPanner();
 
-    this.filter.connect(this.amp);
+    // Ring modulation sits between the filter and the amp: the carrier passes
+    // through a gain whose value is driven by an oscillator, which multiplies
+    // the two signals. Cheap, and the fastest route to genuinely strange.
+    if (p.ring && p.ring.amount > 0) {
+      this.ringGain = ctx.createGain();
+      this.ringGain.gain.value = 1 - clamp(p.ring.amount, 0, 1);
+      this.filter.connect(this.ringGain);
+      this.ringGain.connect(this.amp);
+      this._nodes.push(this.ringGain);
+    } else {
+      this.filter.connect(this.amp);
+    }
+
     this.amp.connect(this.panner);
     this.panner.connect(dest);
     this._nodes.push(this.amp, this.filter, this.panner);
@@ -129,6 +144,18 @@ export class SynthVoice {
       this._sources.push(modOsc);
     }
 
+    /* ---- ring modulator ---- */
+    if (this.ringGain && p.ring) {
+      const ringOsc = ctx.createOscillator();
+      ringOsc.type = p.ring.type || 'sine';
+      ringOsc.frequency.value = p.ring.fixed || freq * (p.ring.ratio ?? 1.5);
+      const depth = ctx.createGain();
+      depth.gain.value = clamp(p.ring.amount, 0, 1);
+      ringOsc.connect(depth).connect(this.ringGain.gain);
+      this._nodes.push(depth);
+      this._sources.push(ringOsc);
+    }
+
     /* ---- set pitch, with optional glide ---- */
     const glide = mod.glideFrom && p.glide > 0 ? p.glide : 0;
     for (const osc of this.oscs) {
@@ -141,27 +168,55 @@ export class SynthVoice {
       }
     }
 
-    /* ---- LFO ---- */
-    if (p.lfo && p.lfo.amount > 0) {
+    /* ---- pitch envelope: swoops, boings, slide whistles ---- */
+    if (p.pitchEnv && p.pitchEnv.semis) {
+      const offset = p.pitchEnv.semis * 100;
+      const span = Math.max(0.005, p.pitchEnv.time ?? 0.25);
+      for (const osc of this.oscs) {
+        if (!osc.detune) continue;
+        const base = (osc._cents || 0) + bend;
+        osc.detune.setValueAtTime(base + offset, time);
+        osc.detune.linearRampToValueAtTime(base, time + span);
+      }
+    }
+
+    /* ---- LFO ----
+       The Wobble macro can add movement to a patch that has none of its own,
+       so an LFO is built whenever either the patch or the macro asks for one. */
+    const macros = mod.macros || {};
+    const lfoBoost = lfoDepthBoost(macros);
+    const patchLfo = p.lfo && p.lfo.amount > 0 ? p.lfo : null;
+
+    if (patchLfo || lfoBoost > 0) {
+      const spec = patchLfo || { type: 'sine', rate: 5, target: 'pitch', amount: 0, delay: 0 };
+      const amount = clamp((spec.amount || 0) + lfoBoost, 0, 1.5);
       const lfo = ctx.createOscillator();
-      lfo.type = p.lfo.type || 'sine';
-      lfo.frequency.value = p.lfo.rate ?? 5;
+      lfo.type = spec.type || 'sine';
+      lfo.frequency.value = (spec.rate ?? 5) * lfoRateScale(macros);
       const depth = ctx.createGain();
       lfo.connect(depth);
-      if (p.lfo.target === 'filter') {
-        depth.gain.value = p.lfo.amount * 2000;
-        depth.connect(this.filter.frequency);
-      } else if (p.lfo.target === 'amp') {
-        depth.gain.value = p.lfo.amount * 0.3;
-        depth.connect(this.amp.gain);
+
+      let target;
+      if (spec.target === 'filter') {
+        depth.gain.value = amount * 2000;
+        target = this.filter.frequency;
+      } else if (spec.target === 'amp') {
+        depth.gain.value = amount * 0.3;
+        target = this.amp.gain;
+      } else if (spec.target === 'pan') {
+        depth.gain.value = clamp(amount, 0, 1);
+        target = this.panner.pan;
       } else {
-        depth.gain.value = p.lfo.amount * 50; // cents of vibrato
+        depth.gain.value = amount * 50; // cents of vibrato
         for (const osc of this.oscs) if (osc.detune) depth.connect(osc.detune);
       }
+      if (target) depth.connect(target);
+
       // Fade the LFO in so sustained notes shimmer but attacks stay clean.
-      if (p.lfo.delay > 0) {
+      if (spec.delay > 0) {
+        const peak = depth.gain.value;
         depth.gain.setValueAtTime(0, time);
-        depth.gain.linearRampToValueAtTime(depth.gain.value, time + p.lfo.delay);
+        depth.gain.linearRampToValueAtTime(peak, time + spec.delay);
       }
       this._nodes.push(depth);
       this._sources.push(lfo);
@@ -174,7 +229,8 @@ export class SynthVoice {
     const macroMul = Math.pow(2, (macro - 0.75) * 5);
     const keytrack = (f.keytrack ?? 0) * (note - 60) * 28;
     const base = clamp(f.hz * macroMul + keytrack, 40, 17000);
-    const envAmt = (f.env ?? 0) * (1 - (p.vel?.filter ?? 0) + (p.vel?.filter ?? 0) * velocity);
+    const envAmt = (f.env ?? 0) * filterEnvScale(macros)
+      * (1 - (p.vel?.filter ?? 0) + (p.vel?.filter ?? 0) * velocity);
     const peak = clamp(base + envAmt * macroMul, 40, 18000);
 
     if (mod.resonanceMacro != null) {
@@ -193,7 +249,8 @@ export class SynthVoice {
     }
 
     /* ---- amplitude envelope ---- */
-    const a = p.amp;
+    const a = shapeAmpEnvelope(p.amp, macros);
+    this._ampEnv = a;
     const peakGain = (p.gain ?? 0.2) *
       (1 - (p.vel?.amp ?? 0.8) + (p.vel?.amp ?? 0.8) * velocity);
     const g = this.amp.gain;
@@ -203,8 +260,10 @@ export class SynthVoice {
     this._peakGain = peakGain;
 
     /* ---- stereo placement ---- */
-    const panSpread = p.panSpread ?? 0;
-    this.panner.pan.value = panSpread ? clamp((Math.random() * 2 - 1) * panSpread, -1, 1) : 0;
+    const panSpread = (p.panSpread ?? 0) * widthScale(macros);
+    if (p.lfo?.target !== 'pan') {
+      this.panner.pan.value = panSpread ? clamp((Math.random() * 2 - 1) * panSpread, -1, 1) : 0;
+    }
 
     for (const s of this._sources) {
       try { s.start(time); } catch { /* already started */ }
@@ -220,7 +279,7 @@ export class SynthVoice {
   release(time) {
     if (this.dead) return;
     const p = this.patch;
-    const r = Math.max(0.01, p.amp.r);
+    const r = Math.max(0.01, this._ampEnv?.r ?? p.amp.r);
     const g = this.amp.gain;
     cancelAndHold(g, time);
     g.linearRampToValueAtTime(0, time + r);

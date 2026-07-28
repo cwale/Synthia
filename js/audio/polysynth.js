@@ -7,6 +7,7 @@
 
 import { clamp } from '../util.js';
 import { SynthVoice } from './voice.js';
+import { defaultMacros } from './macros.js';
 
 const RATE_STEPS = { '1/4': 4, '1/8': 2, '1/8t': 1.5, '1/16': 1 };
 
@@ -17,7 +18,7 @@ export class PolySynth {
     this.clock = clock;
     this.patch = null;
     this.polyphony = 12;
-    this.macros = { cutoff: 0.75, resonance: 0.18 };
+    this.macros = defaultMacros();
     this.bendRange = 2;
 
     this._voices = new Map();     // key -> SynthVoice
@@ -107,6 +108,7 @@ export class PolySynth {
       bendCents: this._bendCents,
       cutoffMacro: this.macros.cutoff,
       resonanceMacro: this.macros.resonance,
+      macros: this.macros,
       glideFrom: this.patch.mono ? this._lastPitch : null,
     });
 

@@ -12,6 +12,7 @@ import { TakeRecorder } from './audio/recorder.js';
 import { triggerPad, panicDrums } from './audio/drums.js';
 import { getPreset, PRESETS } from './audio/presets.js';
 import { getKit } from './audio/kits.js';
+import { ON_SCREEN_MACROS, MACRO_BY_KEY } from './audio/macros.js';
 import { midiHub } from './midi/hub.js';
 import { settings, bus, commit } from './state.js';
 import {
@@ -36,12 +37,12 @@ const COMPUTER_KEYS = {
 };
 const COMPUTER_PADS = ['z', 'x', 'c', 'v', 'b', 'n', 'm', ','];
 
-const MACROS = [
-  { key: 'cutoff', name: 'Tone', color: '#ffb454' },
-  { key: 'resonance', name: 'Bite', color: '#ff7a6b' },
-  { key: 'reverb', name: 'Space', color: '#4ecdc4' },
-  { key: 'delay', name: 'Echo', color: '#a98cf0' },
-];
+const MACRO_COLORS = {
+  cutoff: '#ffb454',
+  resonance: '#ff7a6b',
+  reverb: '#4ecdc4',
+  delay: '#a98cf0',
+};
 
 class App {
   constructor() {
@@ -397,24 +398,43 @@ class App {
 
   applyMacros() {
     const m = settings.macros;
+
+    // Live targets take effect straight away; the rest are read by each voice
+    // as it starts, which is handled inside the synth.
+    this.synth.macros = m;
     this.synth.setMacro('cutoff', m.cutoff);
     this.synth.setMacro('resonance', m.resonance);
+
     this.synthStrip.setReverb(m.reverb);
     this.synthStrip.setDelay(m.delay);
     // Drums want much less of both, or the kit turns to mush.
     this.drumStrip.setReverb(m.reverb * 0.35);
     this.drumStrip.setDelay(m.delay * 0.25);
-    this.synthStrip.setChorus(this.patch?.chorus ?? 0);
+
+    // Width folds the patch's own chorus together with the macro.
+    this.synthStrip.setChorus(clamp((this.patch?.chorus ?? 0) * (m.width ?? 0.5) * 2, 0, 1));
+    engine.setDrive(m.drive ?? 0);
+    engine.setMasterVolume((settings.master.volume) * (0.35 + (m.volume ?? 0.85) * 0.76));
+
     // More echo also means longer tails; a fixed feedback sounds static.
     engine.fx.setFeedback(0.2 + m.delay * 0.4);
     for (const [key, knob] of this.knobs) knob.set(m[key]);
   }
 
   setMacro(name, value, { fromMidi = false } = {}) {
+    if (!MACRO_BY_KEY.has(name)) return;
     settings.macros[name] = value;
     commit('macros');
     this.applyMacros();
-    if (fromMidi) this.knobs.get(name)?.set(value);
+    if (fromMidi) {
+      const knob = this.knobs.get(name);
+      if (knob) knob.set(value);
+      else {
+        // No on-screen knob for this one, so say what moved.
+        const target = MACRO_BY_KEY.get(name);
+        this.showHint(`${target.name}: ${Math.round(value * 100)}`, 1200);
+      }
+    }
   }
 
   setTempo(bpm) {
@@ -491,10 +511,10 @@ class App {
   buildKnobs() {
     const row = qs('#knobrow');
     row.textContent = '';
-    for (const macro of MACROS) {
+    for (const macro of ON_SCREEN_MACROS) {
       const knob = createKnob({
         name: macro.name,
-        color: macro.color,
+        color: MACRO_COLORS[macro.key],
         value: settings.macros[macro.key],
         defaultValue: this.patch ? undefined : 0.5,
         format: (v) => `${Math.round(v * 100)}`,
@@ -676,7 +696,6 @@ class App {
     this.bash.restore();
 
     // Put Play mode back exactly as it was.
-    engine.setMasterVolume(settings.master.volume);
     this.setPatch(settings.synth.presetId, { silent: true });
     this.applyMacros();
     if (settings.groove.on) {
