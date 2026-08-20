@@ -322,6 +322,13 @@ function buildMapping(app, body, sheet) {
     ));
   }
 
+  body.append(group('Unrecognised pads',
+    switchRow('Adopt new pads automatically',
+      'A pad the map has never seen claims the first free slot and is remembered. Lets a controller that scatters its pad notes map itself — just hit all sixteen once.',
+      settings.pads.autoAdopt !== false,
+      (on) => { settings.pads.autoAdopt = on; commit('pads'); }),
+  ));
+
   body.append(buildPadSlots(app, sheet));
   body.append(buildControlMap(app, sheet));
 
@@ -506,11 +513,79 @@ function buildMonitor(app, body) {
     note('This is every message the keyboard sends. Hit a pad to see which channel and note it uses, then set that up under Mapping.'),
   ));
 
+  body.append(buildSeenSummary(app, body));
+
   body.append(group('Reference', row(
     'Reading it',
     'Pads on most controllers send note-on messages on channel 10 with notes starting at C1 (36). Knobs and faders send CC messages — the number after “CC” is what to map.',
     null,
   )));
+}
+
+/**
+ * Every distinct control the hardware has sent this session, and what the app
+ * currently does with it. This is the screen that answers "is this pad
+ * recognised?" without anyone having to convert note names to numbers.
+ */
+function buildSeenSummary(app, body) {
+  const render = () => {
+    const rows = app.hub.seenSummary();
+    const list = h('div', { style: { display: 'grid', gap: '3px' } });
+
+    if (!rows.length) {
+      list.append(h('div.row__sub', null, 'Play some keys, pads, knobs and faders — each distinct control appears here once.'));
+      return list;
+    }
+
+    for (const entry of rows) {
+      let what;
+      let tone = 'var(--ink-3)';
+      if (entry.kind === 'cc') {
+        const macro = settings.ccMap[entry.number];
+        what = macro ? `knob → ${macro}` : 'unassigned CC';
+        if (macro) tone = 'var(--accent-2)';
+      } else {
+        const cls = app.hub.classify(entry.channel, entry.number);
+        if (cls.target === 'pad') {
+          what = `pad ${cls.padIndex + 1}`;
+          tone = 'var(--accent)';
+        } else {
+          what = 'synth key';
+          tone = 'var(--ok)';
+        }
+      }
+
+      list.append(h('div', {
+        style: {
+          display: 'flex', gap: '10px', alignItems: 'baseline',
+          padding: '5px 9px', borderRadius: '7px', background: 'var(--panel)',
+          fontSize: '12px',
+        },
+      },
+        h('span.mono', { style: { minWidth: '104px', color: 'var(--ink-2)' } },
+          entry.kind === 'cc'
+            ? `CC ${entry.number} ch${entry.channel}`
+            : `${noteLabel(entry.number)} (${entry.number}) ch${entry.channel}`),
+        h('span', { style: { flex: '1', color: tone, fontWeight: '650' } }, what),
+        h('span', { style: { color: 'var(--ink-3)' } }, `x${entry.count}`),
+      ));
+    }
+    return list;
+  };
+
+  const holder = h('div', null, render());
+  const off = bus.on('midi:raw', () => {
+    if (!holder.isConnected) { off(); return; }
+    holder.textContent = '';
+    holder.append(render());
+  });
+
+  return group(`What your controller sends`, holder,
+    buttonRow('Start again', 'Clears this list, not your mapping.', 'Clear', () => {
+      app.hub.forgetSeen();
+      holder.textContent = '';
+      holder.append(render());
+    }));
 }
 
 /* ==========================================================================

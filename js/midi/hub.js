@@ -18,12 +18,12 @@ function describeMessage(status, d1, d2) {
   const type = status & 0xf0;
   const ch = (status & 0x0f) + 1;
   switch (type) {
-    case 0x80: return { label: `Note off  ${noteLabel(d1)}`, detail: `ch${ch} vel ${d2}` };
+    case 0x80: return { label: `Note off  ${noteLabel(d1)} (${d1})`, detail: `ch${ch} vel ${d2}` };
     case 0x90: return {
-      label: d2 === 0 ? `Note off  ${noteLabel(d1)}` : `Note on   ${noteLabel(d1)}`,
+      label: `${d2 === 0 ? 'Note off ' : 'Note on  '} ${noteLabel(d1)} (${d1})`,
       detail: `ch${ch} vel ${d2}`,
     };
-    case 0xa0: return { label: `Poly AT   ${noteLabel(d1)}`, detail: `ch${ch} ${d2}` };
+    case 0xa0: return { label: `Poly AT   ${noteLabel(d1)} (${d1})`, detail: `ch${ch} ${d2}` };
     case 0xb0: return { label: `CC ${String(d1).padStart(3)}`, detail: `ch${ch} ${d2}` };
     case 0xc0: return { label: `Program ${d1}`, detail: `ch${ch}` };
     case 0xd0: return { label: 'Channel AT', detail: `ch${ch} ${d1}` };
@@ -39,6 +39,8 @@ export class MidiHub {
     this.native = new NativeMidiTransport();
     this.active = null;
     this.monitor = [];
+    /** "n:ch:note" / "cc:ch:num" -> what it is and how often it has arrived. */
+    this.seen = new Map();
     this.learn = null;
     this._activeNotes = new Set();
 
@@ -156,6 +158,7 @@ export class MidiHub {
     // the monitor so it stays readable.
     if (status >= 0xf8) return;
 
+    this._remember(status, d1, d2);
     const desc = describeMessage(status, d1, d2);
     this.monitor.unshift({ ...desc, bytes, at: timestamp || performance.now() });
     if (this.monitor.length > MONITOR_LIMIT) this.monitor.length = MONITOR_LIMIT;
@@ -192,6 +195,29 @@ export class MidiHub {
     }
   }
 
+  /** Track distinct controls so the monitor can summarise the hardware. */
+  _remember(status, d1, d2) {
+    const type = status & 0xf0;
+    const ch = (status & 0x0f) + 1;
+    let key = null;
+    if (type === 0x90 && d2 > 0) key = `note|${ch}|${d1}`;
+    else if (type === 0xb0) key = `cc|${ch}|${d1}`;
+    if (!key) return;
+    const entry = this.seen.get(key) || { kind: key.split('|')[0], channel: ch, number: d1, count: 0 };
+    entry.count++;
+    entry.lastValue = d2;
+    this.seen.set(key, entry);
+  }
+
+  /** Distinct controls seen this session, most-used first. */
+  seenSummary() {
+    return [...this.seen.values()].sort((a, b) => b.count - a.count);
+  }
+
+  forgetSeen() {
+    this.seen.clear();
+  }
+
   /**
    * Which half of the instrument does this note belong to?
    * A learned pad map always wins, because it was measured from the hardware.
@@ -213,6 +239,7 @@ export class MidiHub {
         return { target: 'pad', padIndex: ((idx % 16) + 16) % 16 };
       }
       return { target: 'key' };
+
     }
 
     if (s.mode === 'channel') {
@@ -255,6 +282,27 @@ export class MidiHub {
     this._padChannelCache = null;
   }
 
+  /**
+   * Give an unrecognised pad the first free slot and remember it. Controllers
+   * that scatter their pad notes across the range (this one sends some near
+   * note 16 and some near 111) defeat any contiguous assumption, so the app
+   * learns them as they are played rather than guessing a formula.
+   *
+   * @returns {number|null} the slot claimed, or null when all 16 are taken
+   */
+  adoptPad(channel, note) {
+    const used = new Set(Object.values(settings.padMap));
+    for (let i = 0; i < 16; i++) {
+      if (used.has(i)) continue;
+      settings.padMap[`${channel}:${note}`] = i;
+      this._invalidatePadCache();
+      commit('padMap');
+      bus.emit('midi:pad-adopted', { padIndex: i, note, channel });
+      return i;
+    }
+    return null;
+  }
+
   _noteOn(channel, note, velocity) {
     if (this.learn?.mode === 'pads') {
       this._learnPad(channel, note);
@@ -263,6 +311,15 @@ export class MidiHub {
     if (this.learn?.mode === 'pad-one') {
       this._learnOnePad(channel, note);
       return;
+    }
+
+    // A pad the map hasn't seen before claims a free slot, so playing all
+    // sixteen once is enough to map a controller however it numbers them.
+    if (settings.pads.autoAdopt !== false
+      && settings.split.mode === 'padmap'
+      && settings.padMap[`${channel}:${note}`] == null
+      && this._padChannels().includes(channel)) {
+      this.adoptPad(channel, note);
     }
 
     const { target, padIndex } = this.classify(channel, note);
