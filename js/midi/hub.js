@@ -174,26 +174,11 @@ export class MidiHub {
 
     switch (type) {
       case 0x90:
-        if (d2 === 0) {
-          /* Some controllers report a pad strike as note-on velocity 0, which
-             the spec reads as note-off — so the hit is silently discarded. On
-             the pad channel only, treat it as a real hit at a fixed velocity;
-             pads are one-shots, so the missing note-off costs nothing. Never
-             do this for keys, where the convention must be honoured. */
-          if (settings.pads.rescueZeroVelocity !== false
-            && this._isPadChannel(channel)
-            && this.classify(channel, d1).target === 'pad') {
-            this._noteOn(channel, d1, settings.pads.zeroVelocityLevel ?? 100);
-            this._noteOff(channel, d1);
-          } else {
-            this._noteOff(channel, d1);
-          }
-        } else {
-          this._noteOn(channel, d1, d2);
-        }
+        if (d2 === 0) this._endNote(channel, d1);
+        else this._noteOn(channel, d1, d2);
         break;
       case 0x80:
-        this._noteOff(channel, d1);
+        this._endNote(channel, d1);
         break;
       case 0xb0:
         this._controlChange(channel, d1, d2);
@@ -220,14 +205,21 @@ export class MidiHub {
     const type = status & 0xf0;
     const ch = (status & 0x0f) + 1;
     let key = null;
-    if (type === 0x90) key = `note|${ch}|${d1}`;
+    // Note-offs share a note's entry: a pad that only ever sends one would
+    // otherwise be missing from the summary, which is precisely the pad whose
+    // absence needs explaining.
+    if (type === 0x90 || type === 0x80) key = `note|${ch}|${d1}`;
     else if (type === 0xb0) key = `cc|${ch}|${d1}`;
+    else if (type === 0xa0) key = `polyat|${ch}|${d1}`;
     if (!key) return;
-    const entry = this.seen.get(key)
-      || { kind: key.split('|')[0], channel: ch, number: d1, count: 0, zeroVel: 0, realVel: 0 };
+    const entry = this.seen.get(key) || {
+      kind: key.split('|')[0], channel: ch, number: d1,
+      count: 0, zeroVel: 0, realVel: 0, offs: 0,
+    };
     entry.count++;
     entry.lastValue = d2;
-    if (type === 0x90) {
+    if (type === 0x80) entry.offs++;
+    else if (type === 0x90) {
       if (d2 === 0) entry.zeroVel++;
       else entry.realVel++;
     }
@@ -404,6 +396,42 @@ export class MidiHub {
     } else {
       bus.emit('midi:key-on', { note, velocity, channel });
     }
+  }
+
+  /**
+   * Handle a message that reads as a note ending — either 0x80, or 0x90 at
+   * velocity 0, which the spec says to treat the same way.
+   *
+   * A note ending that nothing was holding did not end anything. On the pad
+   * channel the only reading left is that a strike arrived without a velocity
+   * to go with it, which is how some controllers report their pads: this one
+   * sends four of its sixteen that way and they were silently discarded. So
+   * the hit is taken at face value and fired at a set velocity.
+   *
+   * Keying this on "was it held" rather than on the status byte is what makes
+   * it safe. A controller that pairs its messages properly never reaches the
+   * rescue, so nothing that already worked can start double-triggering — which
+   * the earlier version, testing only for velocity 0, did on every release.
+   */
+  /**
+   * Forget which notes are down. Panic cuts the sound but the hardware never
+   * hears about it, so without this the hub keeps believing those notes are
+   * held — and the next release-only pad hit would be read as their release
+   * and swallowed rather than rescued.
+   */
+  releaseAll() {
+    this._activeNotes.clear();
+  }
+
+  _endNote(channel, note) {
+    const held = this._activeNotes.has(`${channel}:${note}`);
+    if (!held
+      && settings.pads.rescueZeroVelocity !== false
+      && this._isPadChannel(channel)
+      && this.classify(channel, note).target === 'pad') {
+      this._noteOn(channel, note, settings.pads.zeroVelocityLevel ?? 100);
+    }
+    this._noteOff(channel, note);
   }
 
   _noteOff(channel, note) {

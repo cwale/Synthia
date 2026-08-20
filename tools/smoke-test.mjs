@@ -80,6 +80,9 @@ const { chromium } = await import('playwright');
 
 const browser = await chromium.launch({
   args: ['--autoplay-policy=no-user-gesture-required'],
+  // Lets the test run against a Chromium that is already on the machine, for
+  // environments where the build Playwright pins isn't the one installed.
+  ...(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {}),
 });
 const context = await browser.newContext({
   viewport: { width: 390, height: 844 },
@@ -405,6 +408,75 @@ await check('rescue can be turned off', async () => {
     return count;
   });
   assert(fired === 0, `rescue disabled should fire nothing, fired ${fired}`);
+});
+
+// The four pads this hardware sends as a bare note-off, and the guarantee that
+// making them work cannot make the twelve that already work fire twice.
+await check('a note-off with nothing held is taken as a pad hit', async () => {
+  const res = await page.evaluate(async () => {
+    const { midiHub } = await import('./js/midi/hub.js');
+    const { settings, bus } = await import('./js/state.js');
+    midiHub.resetPadSlots(2);
+    settings.pads.rescueZeroVelocity = true;
+    settings.pads.zeroVelocityLevel = 100;
+
+    const fake = { kind: 'webmidi', label: 'Test', status: 'connected', deviceName: 'Test', available: true, disconnect() {} };
+    midiHub.active = fake;
+    const send = (b) => midiHub._onMessage(b, performance.now(), fake);
+    const pads = [];
+    const keys = [];
+    const offPad = bus.on('midi:pad-on', ({ padIndex, velocity }) => pads.push([padIndex, velocity]));
+    const offKey = bus.on('midi:key-on', ({ note }) => keys.push(note));
+
+    // A plain note-off, never preceded by a note-on: nothing was released.
+    send([0x81, 16, 0]);
+    await new Promise((r) => setTimeout(r, 80));
+    // The same, at the non-zero release velocity some controllers send.
+    send([0x81, 17, 64]);
+    await new Promise((r) => setTimeout(r, 80));
+    // On the key channel it stays a note-off — a key cannot be rescued.
+    send([0x80, 60, 0]);
+    await new Promise((r) => setTimeout(r, 150));
+    offPad(); offKey();
+    return { pads, keys };
+  });
+  console.log('        ', JSON.stringify(res));
+  assert(res.pads.length === 2, `both note-off-only pads should fire, got ${JSON.stringify(res.pads)}`);
+  assert(res.pads.every(([, v]) => v === 100), `should use the configured velocity: ${JSON.stringify(res.pads)}`);
+  eq(res.keys, [], 'a note-off on the key channel must not become a key press');
+  await page.click('#panic-btn');
+});
+
+await check('a well-behaved pad fires exactly once', async () => {
+  const res = await page.evaluate(async () => {
+    const { midiHub } = await import('./js/midi/hub.js');
+    const { settings, bus } = await import('./js/state.js');
+    midiHub.resetPadSlots(2);
+    settings.pads.rescueZeroVelocity = true;
+
+    const fake = { kind: 'webmidi', label: 'Test', status: 'connected', deviceName: 'Test', available: true, disconnect() {} };
+    midiHub.active = fake;
+    const send = (b) => midiHub._onMessage(b, performance.now(), fake);
+    const pads = [];
+    const off = bus.on('midi:pad-on', ({ padIndex, velocity }) => pads.push([padIndex, velocity]));
+
+    // Released as note-on velocity 0 …
+    send([0x91, 36, 120]);
+    await new Promise((r) => setTimeout(r, 60));
+    send([0x91, 36, 0]);
+    await new Promise((r) => setTimeout(r, 60));
+    // … and released as a proper note-off.
+    send([0x91, 37, 110]);
+    await new Promise((r) => setTimeout(r, 60));
+    send([0x81, 37, 0]);
+    await new Promise((r) => setTimeout(r, 150));
+    off();
+    return pads;
+  });
+  console.log('        ', JSON.stringify(res));
+  assert(res.length === 2, `two hits should produce two events, got ${JSON.stringify(res)}`);
+  eq(res.map(([, v]) => v), [120, 110], 'rescue must not overwrite a real velocity');
+  await page.click('#panic-btn');
 });
 
 await check('version label renders on the splash', async () => {
