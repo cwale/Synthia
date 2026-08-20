@@ -280,6 +280,68 @@ await check('every patch can sound without erroring', async () => {
   await page.click('#panic-btn');
 });
 
+await check('scattered pads adopt free slots as they are played', async () => {
+  const res = await page.evaluate(async () => {
+    const { midiHub } = await import('./js/midi/hub.js');
+    const { settings, commit, bus } = await import('./js/state.js');
+    // A Learn that captured only the first four, on channel 2.
+    settings.padMap = { '2:111': 0, '2:112': 1, '2:113': 2, '2:114': 3 };
+    settings.split.mode = 'padmap';
+    settings.pads.autoAdopt = true;
+    midiHub._invalidatePadCache();
+    commit('padMap');
+
+    const fake = { kind: 'webmidi', label: 'Test', status: 'connected', deviceName: 'Test', available: true, disconnect() {} };
+    midiHub.active = fake;
+    const send = (b) => midiHub._onMessage(b, performance.now(), fake);
+    const pads = [];
+    const offFirst = bus.on('midi:pad-on', ({ padIndex }) => pads.push(padIndex));
+
+    // Four more pads the map has never seen, nowhere near the first four.
+    for (const n of [16, 17, 18, 19]) send([0x91, n, 100]);
+    await new Promise((r) => setTimeout(r, 200));
+    for (const n of [16, 17, 18, 19]) send([0x81, n, 0]);
+    offFirst();
+
+    // Playing them again must reuse the same slots, not claim new ones.
+    const secondPass = [];
+    bus.on('midi:pad-on', ({ padIndex }) => secondPass.push(padIndex));
+    for (const n of [16, 17, 18, 19]) send([0x91, n, 100]);
+    await new Promise((r) => setTimeout(r, 200));
+    for (const n of [16, 17, 18, 19]) send([0x81, n, 0]);
+
+    return { pads, secondPass, map: { ...settings.padMap } };
+  });
+  console.log('        ', JSON.stringify(res.pads), '->', JSON.stringify(res.secondPass));
+  eq(res.pads, [4, 5, 6, 7], 'unknown pads should claim the first free slots');
+  eq(res.secondPass, [4, 5, 6, 7], 'a second hit must reuse the same slots');
+  assert(Object.keys(res.map).length === 8, `map should hold 8 pads, has ${Object.keys(res.map).length}`);
+  await page.click('#panic-btn');
+});
+
+await check('monitor reports note numbers and a control summary', async () => {
+  const res = await page.evaluate(async () => {
+    const { midiHub } = await import('./js/midi/hub.js');
+    midiHub.forgetSeen();
+    const fake = { kind: 'webmidi', label: 'Test', status: 'connected', deviceName: 'Test', available: true, disconnect() {} };
+    midiHub.active = fake;
+    const send = (b) => midiHub._onMessage(b, performance.now(), fake);
+    send([0x91, 111, 90]);
+    send([0x91, 111, 90]);
+    send([0xb0, 64, 70]);
+    await new Promise((r) => setTimeout(r, 120));
+    return {
+      label: midiHub.monitor.find((m) => m.label.includes('111'))?.label || '',
+      summary: midiHub.seenSummary().map((e) => `${e.kind}:${e.number}x${e.count}`),
+    };
+  });
+  console.log('        ', JSON.stringify(res));
+  assert(res.label.includes('(111)'), `monitor should show the note number: "${res.label}"`);
+  assert(res.summary.includes('note:111x2'), `summary should count repeats: ${res.summary}`);
+  assert(res.summary.includes('cc:64x1'), `summary should list CCs: ${res.summary}`);
+  await page.click('#panic-btn');
+});
+
 await check('decodes BLE-MIDI packets', async () => {
   const res = await page.evaluate(async () => {
     const { decodeBleMidiPacket } = await import('./js/midi/blemidi.js');

@@ -37,7 +37,7 @@ export const defaults = {
 
   synth: { presetId: 'warm-keys' },
 
-  pads: { kitId: 'studio', layout: 'mpc' },   // layout: mpc = pad 1 bottom-left
+  pads: { kitId: 'studio', layout: 'mpc', autoAdopt: true },   // layout: mpc = pad 1 bottom-left
 
   macros: defaultMacros(),
 
