@@ -4,7 +4,7 @@
    and must not care whether there is signal, so freshness comes second — a new
    version is picked up on the next launch. */
 
-const VERSION = 'synthia-v1';
+const VERSION = 'synthia-0bd3ab6';
 
 const SHELL = [
   './',

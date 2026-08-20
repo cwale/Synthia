@@ -265,6 +265,7 @@ class App {
     if (engine.ctx) panicDrums(engine.ctx);
     this.keyboard?.clearAll();
     this.pads?.clearAll();
+    this.hub?.releaseAll();
   }
 
   /* ======================================================================
@@ -774,8 +775,8 @@ async function showVersion() {
   const el = qs('#splash-version');
   el.textContent = versionLabel();
   const latest = await latestDeployed();
-  if (!latest || !latest.sha || latest.sha === VERSION.sha) return;
-  el.innerHTML = `${versionLabel()} — <b>update available (${latest.sha})</b>`;
+  if (!latest || !latest.id || latest.id === VERSION.id) return;
+  el.innerHTML = `${versionLabel()} — <b>update available (${latest.id})</b>`;
   el.style.cursor = 'pointer';
   el.title = 'Tap to load the newer build';
   el.addEventListener('click', async () => {

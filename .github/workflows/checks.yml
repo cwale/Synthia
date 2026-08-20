@@ -58,6 +58,12 @@ jobs:
             if (missing.length) throw new Error('not precached in sw.js: ' + missing.join(', '));
           "
 
+      # The stamp is what the splash screen reports and what names the service
+      # worker cache, so a stale one means the app claims to be a build it is
+      # not and keeps serving the old code.
+      - name: Build stamp matches the content
+        run: node tools/stamp.mjs --check
+
   smoke:
     name: Browser smoke test
     runs-on: ubuntu-latest

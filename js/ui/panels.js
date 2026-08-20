@@ -325,8 +325,8 @@ function buildMapping(app, body, sheet) {
   body.append(buildPadReset(app, sheet));
 
   body.append(group('Pads that send no velocity',
-    switchRow('Rescue zero-velocity pads',
-      'Some pads report a hit as “note on, velocity 0”, which the MIDI spec reads as a release — so the hit is thrown away. On the pad channel only, treat it as a real hit instead.',
+    switchRow('Rescue pads that only send a release',
+      'Some pads report a hit as a release with no matching press — either “note on, velocity 0” or a plain note-off. Nothing was being held, so nothing was released: on the pad channel, count it as a hit instead.',
       settings.pads.rescueZeroVelocity !== false,
       (on) => { settings.pads.rescueZeroVelocity = on; commit('pads'); }),
     sliderRow('Velocity to use', 'How hard those pads should count as being hit.', {
@@ -334,7 +334,10 @@ function buildMapping(app, body, sheet) {
       format: (v) => String(v),
       onInput: (v) => { settings.pads.zeroVelocityLevel = v; commit('pads'); },
     }),
+    note('Pads that press and release properly are untouched by this, so turning it on cannot make a working pad fire twice.'),
   ));
+
+  body.append(buildHardwareTips());
 
   body.append(group('Unrecognised pads',
     switchRow('Adopt new pads automatically',
@@ -451,6 +454,30 @@ function buildPadReset(app, sheet) {
       format: (v) => `ch ${v}`,
       onInput: (v) => { settings.split.padChannel = v; commit('split'); },
     }),
+  );
+}
+
+/**
+ * What the controller itself can be told to do, from the SMK-37 manual.
+ *
+ * Everything the app does about odd pads is a workaround; several of these
+ * problems are settings on the hardware and are better fixed at the source.
+ * The pad notes, channel and velocity curve are all user-configurable on this
+ * device, which is also why there is no fixed pad map to ship — the app has to
+ * learn whatever the keyboard has been set to.
+ */
+function buildHardwareTips() {
+  const tips = [
+    ['Pads always at velocity 0', 'Hold Globe and turn K5 to set the pad velocity curve. A setting of 4 means every pad hits at full velocity, which fixes it on the keyboard rather than here.'],
+    ['Pads on the wrong channel', 'Hold Globe and turn K3, or hold Globe and press the pad numbered with the channel you want. The factory setting is channel 10.'],
+    ['Keys on the wrong channel', 'Hold Globe and turn K2, or hold Globe and press the key printed with that channel number.'],
+    ['Pads sending pressure constantly', 'Hold Globe and turn K6 to switch pad aftertouch off. It is on from the factory and sends a stream of messages while a pad is held.'],
+    ['Half the pads look wrong', 'Pressing Knob Bank and Fader Bank together switches the pads to bank 17–32, which sends a different set of notes. Press both again to come back.'],
+    ['Nothing matches at all', 'M-Vave’s MIDI Suite app can rewrite every pad, knob and fader, and eight presets can each hold a different mapping — so another preset may be what you are hearing.'],
+  ];
+  return group('Fixing this on the keyboard itself',
+    ...tips.map(([label, sub]) => row(label, sub, null, { stack: true })),
+    note('From the SMK-37 Elite manual. Hold Globe to see the current values on the keyboard’s own display.'),
   );
 }
 
@@ -594,6 +621,9 @@ function buildSeenSummary(app, body) {
         const macro = settings.ccMap[entry.number];
         what = macro ? `knob → ${macro}` : 'unassigned CC';
         if (macro) tone = 'var(--accent-2)';
+      } else if (entry.kind === 'polyat') {
+        what = 'aftertouch — pad pressure';
+        tone = 'var(--accent-2)';
       } else {
         const cls = app.hub.classify(entry.channel, entry.number);
         if (cls.target === 'pad') {
@@ -603,10 +633,15 @@ function buildSeenSummary(app, body) {
           what = 'synth key';
           tone = 'var(--ok)';
         }
-        // A control that only ever reports velocity 0 sends no playable hit.
-        if (entry.realVel === 0 && entry.zeroVel > 0) {
-          what += ' · always velocity 0';
-          tone = 'var(--hot)';
+        // Nothing here carried a playable velocity. Say which way it is being
+        // rescued, or that it is being dropped, rather than only flagging it.
+        if (entry.realVel === 0 && (entry.zeroVel > 0 || entry.offs > 0)) {
+          const rescued = cls.target === 'pad' && settings.pads.rescueZeroVelocity !== false;
+          const how = entry.offs > 0 && entry.zeroVel === 0 ? 'note-off only' : 'always velocity 0';
+          what += rescued
+            ? ` · ${how}, played at ${settings.pads.zeroVelocityLevel ?? 100}`
+            : ` · ${how}, silent`;
+          tone = rescued ? 'var(--accent)' : 'var(--hot)';
         }
       }
 

@@ -90,6 +90,29 @@ those outliers land on pads 13–16 rather than playing the synth. If one still
 lands in the wrong slot, **Mapping › Individual pads** lets you tap a slot and
 hit that pad to fix it on its own.
 
+### Pads that only send a release
+
+Some pads report a hit as a release with no matching press — either *note on,
+velocity 0* or a plain note-off. Both read as "let go" under the MIDI spec, so
+the hit is discarded and the pad appears dead.
+
+The app decides by what was actually held rather than by the status byte: a
+release for a note nothing was holding didn't release anything, so on the pad
+channel it's counted as a hit and fired at a set velocity (**Mapping › Pads that
+send no velocity**). Pads that press and release properly never reach that
+branch, so they can't start double-triggering.
+
+This is a workaround for a keyboard setting, and the SMK-37 can be fixed at the
+source: **hold Globe and turn K5** to set the pad velocity curve, where 4 means
+every pad sends full velocity. The same menu holds the pad channel (K3), the key
+channel (K2) and pad aftertouch (K6). **Mapping › Fixing this on the keyboard
+itself** lists these in the app.
+
+Because the pad notes, channel and velocity curve are all user-configurable —
+and M-Vave's MIDI Suite can rewrite them entirely, across eight presets — there
+is no factory pad map worth shipping. The app has to learn whatever your
+keyboard has been set to, which is why Learn exists.
+
 ## Knobs and faders
 
 Set up for the SMK-37 out of the box:
@@ -209,6 +232,28 @@ npx http-server -p 8123        # or any static server
 Then open `http://localhost:8123`. Web Bluetooth and Web MIDI need a secure
 context, so `localhost` is fine but a plain LAN IP is not — use HTTPS for
 on-device testing.
+
+Run the checks with `node tools/smoke-test.mjs` (set `CHROMIUM_PATH` if you want
+it to use a Chromium already on the machine).
+
+### Stamping a build
+
+After changing anything under `js/`, `css/`, `index.html` or the manifest:
+
+```sh
+node tools/stamp.mjs
+```
+
+This writes a content hash into `js/version.js`, `version.json` and the service
+worker's cache name, which is what the splash screen reports and what makes a
+deploy invalidate the old cache. CI runs `node tools/stamp.mjs --check` and fails
+if it's stale, so the app can't claim to be a build it isn't.
+
+It runs at commit time rather than at deploy time on purpose: this repository has
+both a custom Pages workflow and GitHub's built-in branch-based Pages build, they
+both fire on a push to main, and whichever finishes last wins. Anything edited
+during a deploy is discarded about half the time. Stamping the committed files
+means both publishers serve the same bytes.
 
 ## Background
 
