@@ -27,6 +27,23 @@ jobs:
       # enablement: true turns Pages on via the API rather than requiring
       # someone to set Settings > Pages > Source by hand first, which is what
       # made the first deploy fail with "Get Pages site failed".
+      # Stamp the build so the running app can name itself and detect that a
+      # newer one exists — the service worker will otherwise serve a cached
+      # copy with no way to tell how old it is.
+      - name: Stamp version
+        run: |
+          SHA_SHORT=$(git rev-parse --short HEAD)
+          BUILT_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          printf '{"sha":"%s","builtAt":"%s"}\n' "$SHA_SHORT" "$BUILT_AT" > version.json
+          sed -i "s/sha: 'dev'/sha: '$SHA_SHORT'/" js/version.js
+          sed -i "s/builtAt: ''/builtAt: '$BUILT_AT'/" js/version.js
+          # A changed cache name forces the service worker to refresh everything.
+          sed -i "s/const VERSION = 'synthia-v1'/const VERSION = 'synthia-$SHA_SHORT'/" sw.js
+          echo "Stamped $SHA_SHORT at $BUILT_AT"
+          cat version.json
+          grep -n "sha:\|builtAt:" js/version.js
+          grep -n "^const VERSION" sw.js
+
       - uses: actions/configure-pages@v5
         with:
           enablement: true

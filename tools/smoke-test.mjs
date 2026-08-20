@@ -353,6 +353,66 @@ await check('an empty pad map still adopts, in play order', async () => {
   await page.click('#panic-btn');
 });
 
+await check('zero-velocity pad hits still fire', async () => {
+  const res = await page.evaluate(async () => {
+    const { midiHub } = await import('./js/midi/hub.js');
+    const { settings, bus } = await import('./js/state.js');
+    midiHub.resetPadSlots(2);
+    settings.pads.rescueZeroVelocity = true;
+    settings.pads.zeroVelocityLevel = 100;
+
+    const fake = { kind: 'webmidi', label: 'Test', status: 'connected', deviceName: 'Test', available: true, disconnect() {} };
+    midiHub.active = fake;
+    const send = (b) => midiHub._onMessage(b, performance.now(), fake);
+    const pads = [];
+    const keys = [];
+    const offPad = bus.on('midi:pad-on', ({ padIndex, velocity }) => pads.push([padIndex, velocity]));
+    const offKey = bus.on('midi:key-on', ({ note }) => keys.push(note));
+
+    // Establish the pad, then send the hit the way this hardware does it:
+    // note-on with velocity 0, which the spec reads as a release.
+    send([0x91, 16, 100]);
+    await new Promise((r) => setTimeout(r, 80));
+    send([0x91, 17, 0]);
+    // A key on channel 1 at velocity 0 must still be treated as note-off.
+    send([0x90, 60, 0]);
+    await new Promise((r) => setTimeout(r, 200));
+    offPad(); offKey();
+    return { pads, keys };
+  });
+  console.log('        ', JSON.stringify(res));
+  assert(res.pads.length === 2, `expected both pads to fire, got ${JSON.stringify(res.pads)}`);
+  assert(res.pads[1][1] === 100, `rescued hit should use the configured velocity: ${res.pads[1][1]}`);
+  eq(res.keys, [], 'a zero-velocity note on the key channel must stay a note-off');
+  await page.click('#panic-btn');
+});
+
+await check('rescue can be turned off', async () => {
+  const fired = await page.evaluate(async () => {
+    const { midiHub } = await import('./js/midi/hub.js');
+    const { settings, bus } = await import('./js/state.js');
+    midiHub.resetPadSlots(2);
+    settings.pads.rescueZeroVelocity = false;
+    const fake = { kind: 'webmidi', label: 'Test', status: 'connected', deviceName: 'Test', available: true, disconnect() {} };
+    midiHub.active = fake;
+    const send = (b) => midiHub._onMessage(b, performance.now(), fake);
+    let count = 0;
+    const off = bus.on('midi:pad-on', () => count++);
+    send([0x91, 18, 0]);
+    await new Promise((r) => setTimeout(r, 150));
+    off();
+    settings.pads.rescueZeroVelocity = true;
+    return count;
+  });
+  assert(fired === 0, `rescue disabled should fire nothing, fired ${fired}`);
+});
+
+await check('version label renders on the splash', async () => {
+  const text = await page.evaluate(() => document.querySelector('#splash-version')?.textContent || '');
+  console.log('         version line:', JSON.stringify(text));
+  assert(text.length > 0, 'splash should show a version line');
+});
+
 await check('pad channel is guessed from out-of-range notes', async () => {
   const guess = await page.evaluate(async () => {
     const { midiHub } = await import('./js/midi/hub.js');

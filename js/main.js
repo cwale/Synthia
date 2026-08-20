@@ -13,6 +13,7 @@ import { triggerPad, panicDrums } from './audio/drums.js';
 import { getPreset, PRESETS } from './audio/presets.js';
 import { getKit } from './audio/kits.js';
 import { ON_SCREEN_MACROS, MACRO_BY_KEY } from './audio/macros.js';
+import { VERSION, versionLabel, latestDeployed } from './version.js';
 import { midiHub } from './midi/hub.js';
 import { settings, bus, commit } from './state.js';
 import {
@@ -766,6 +767,29 @@ function describeSplash() {
 }
 
 describeSplash();
+
+/* Show which build is running, and whether a newer one has been deployed —
+   the service worker can otherwise serve an old copy indefinitely. */
+async function showVersion() {
+  const el = qs('#splash-version');
+  el.textContent = versionLabel();
+  const latest = await latestDeployed();
+  if (!latest || !latest.sha || latest.sha === VERSION.sha) return;
+  el.innerHTML = `${versionLabel()} — <b>update available (${latest.sha})</b>`;
+  el.style.cursor = 'pointer';
+  el.title = 'Tap to load the newer build';
+  el.addEventListener('click', async () => {
+    try {
+      const regs = await navigator.serviceWorker?.getRegistrations?.() || [];
+      await Promise.all(regs.map((r) => r.unregister()));
+      const keys = await caches?.keys?.() || [];
+      await Promise.all(keys.map((k) => caches.delete(k)));
+    } catch { /* fall through to a plain reload */ }
+    location.reload();
+  });
+}
+
+showVersion();
 
 const startHandlers = ['click', 'touchend'];
 for (const evt of startHandlers) {

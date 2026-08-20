@@ -324,6 +324,18 @@ function buildMapping(app, body, sheet) {
 
   body.append(buildPadReset(app, sheet));
 
+  body.append(group('Pads that send no velocity',
+    switchRow('Rescue zero-velocity pads',
+      'Some pads report a hit as “note on, velocity 0”, which the MIDI spec reads as a release — so the hit is thrown away. On the pad channel only, treat it as a real hit instead.',
+      settings.pads.rescueZeroVelocity !== false,
+      (on) => { settings.pads.rescueZeroVelocity = on; commit('pads'); }),
+    sliderRow('Velocity to use', 'How hard those pads should count as being hit.', {
+      min: 20, max: 127, step: 1, value: settings.pads.zeroVelocityLevel ?? 100,
+      format: (v) => String(v),
+      onInput: (v) => { settings.pads.zeroVelocityLevel = v; commit('pads'); },
+    }),
+  ));
+
   body.append(group('Unrecognised pads',
     switchRow('Adopt new pads automatically',
       'A pad the map has never seen claims the first free slot and is remembered. Lets a controller that scatters its pad notes map itself — just hit all sixteen once.',
@@ -590,6 +602,11 @@ function buildSeenSummary(app, body) {
         } else {
           what = 'synth key';
           tone = 'var(--ok)';
+        }
+        // A control that only ever reports velocity 0 sends no playable hit.
+        if (entry.realVel === 0 && entry.zeroVel > 0) {
+          what += ' · always velocity 0';
+          tone = 'var(--hot)';
         }
       }
 

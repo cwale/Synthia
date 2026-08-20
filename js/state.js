@@ -37,7 +37,13 @@ export const defaults = {
 
   synth: { presetId: 'warm-keys' },
 
-  pads: { kitId: 'studio', layout: 'mpc', autoAdopt: true },   // layout: mpc = pad 1 bottom-left
+  pads: {
+    kitId: 'studio',
+    layout: 'mpc',              // mpc = pad 1 bottom-left
+    autoAdopt: true,
+    rescueZeroVelocity: true,   // treat note-on vel 0 on the pad channel as a hit
+    zeroVelocityLevel: 100,
+  },
 
   macros: defaultMacros(),
 
