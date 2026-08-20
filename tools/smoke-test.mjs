@@ -319,6 +319,61 @@ await check('scattered pads adopt free slots as they are played', async () => {
   await page.click('#panic-btn');
 });
 
+await check('an empty pad map still adopts, in play order', async () => {
+  const res = await page.evaluate(async () => {
+    const { midiHub } = await import('./js/midi/hub.js');
+    const { settings, commit, bus } = await import('./js/state.js');
+    // The exact situation that deadlocked: nothing learned at all.
+    midiHub.resetPadSlots(2);
+    commit('padMap');
+
+    const fake = { kind: 'webmidi', label: 'Test', status: 'connected', deviceName: 'Test', available: true, disconnect() {} };
+    midiHub.active = fake;
+    const send = (b) => midiHub._onMessage(b, performance.now(), fake);
+    const pads = [];
+    const keys = [];
+    const offPad = bus.on('midi:pad-on', ({ padIndex }) => pads.push(padIndex));
+    const offKey = bus.on('midi:key-on', ({ note }) => keys.push(note));
+
+    // Pads 1-5 as this controller sends them: channel 2, notes 111-115.
+    for (const n of [111, 112, 113, 114, 115]) send([0x91, n, 100]);
+    // Then the four outliers.
+    for (const n of [16, 17, 18, 19]) send([0x91, n, 100]);
+    // A real key on channel 1 must stay a key.
+    send([0x90, 60, 100]);
+    await new Promise((r) => setTimeout(r, 250));
+    for (const n of [111, 112, 113, 114, 115, 16, 17, 18, 19]) send([0x81, n, 0]);
+    send([0x80, 60, 0]);
+    offPad(); offKey();
+    return { pads, keys };
+  });
+  console.log('        ', JSON.stringify(res));
+  eq(res.pads, [0, 1, 2, 3, 4, 5, 6, 7, 8], 'pads must fill slots 1-9 in the order played');
+  eq(res.keys, [60], 'channel 1 must still play the synth');
+  await page.click('#panic-btn');
+});
+
+await check('pad channel is guessed from out-of-range notes', async () => {
+  const guess = await page.evaluate(async () => {
+    const { midiHub } = await import('./js/midi/hub.js');
+    midiHub.forgetSeen();
+    const fake = { kind: 'webmidi', label: 'Test', status: 'connected', deviceName: 'Test', available: true, disconnect() {} };
+    midiHub.active = fake;
+    const send = (b) => midiHub._onMessage(b, performance.now(), fake);
+    // Plenty of keyboard traffic on ch1, a little pad traffic on ch2.
+    for (let n = 48; n < 68; n++) send([0x90, n, 100]);
+    send([0x91, 111, 100]);
+    send([0x91, 16, 100]);
+    await new Promise((r) => setTimeout(r, 120));
+    return midiHub.guessPadChannel();
+  });
+  console.log('        ', JSON.stringify(guess));
+  assert(guess && guess.channel === 2,
+    `should pick the channel with out-of-range notes, got ${JSON.stringify(guess)}`);
+  assert(guess.confident, 'should be confident when notes fall outside the key range');
+  await page.click('#panic-btn');
+});
+
 await check('monitor reports note numbers and a control summary', async () => {
   const res = await page.evaluate(async () => {
     const { midiHub } = await import('./js/midi/hub.js');
