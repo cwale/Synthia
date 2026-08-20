@@ -219,6 +219,43 @@ export class MidiHub {
   }
 
   /**
+   * Best guess at the pad channel: whichever channel has carried notes that
+   * the 37-key keyboard could not have produced, or failing that the busiest
+   * note channel that isn't the one the keys arrive on.
+   */
+  guessPadChannel() {
+    const byChannel = new Map();
+    for (const entry of this.seen.values()) {
+      if (entry.kind !== 'note') continue;
+      const stats = byChannel.get(entry.channel) || { count: 0, outOfRange: 0, notes: new Set() };
+      stats.count += entry.count;
+      stats.notes.add(entry.number);
+      // A 37-key controller starting at C2 spans 36..72; anything outside that
+      // is almost certainly a pad rather than a key.
+      if (entry.number < 36 || entry.number > 72) stats.outOfRange += entry.count;
+      byChannel.set(entry.channel, stats);
+    }
+    if (!byChannel.size) return null;
+
+    const ranked = [...byChannel.entries()].sort((a, b) => {
+      if (b[1].outOfRange !== a[1].outOfRange) return b[1].outOfRange - a[1].outOfRange;
+      return b[1].count - a[1].count;
+    });
+    const [channel, stats] = ranked[0];
+    return { channel, confident: stats.outOfRange > 0, distinctNotes: stats.notes.size };
+  }
+
+  /** Wipe the pad map and start assigning slots from pad 1 again. */
+  resetPadSlots(padChannel = null) {
+    settings.padMap = {};
+    if (padChannel) settings.split.padChannel = padChannel;
+    settings.split.mode = 'padmap';
+    settings.pads.autoAdopt = true;
+    this._invalidatePadCache();
+    commit('padMap');
+  }
+
+  /**
    * Which half of the instrument does this note belong to?
    * A learned pad map always wins, because it was measured from the hardware.
    */
@@ -233,7 +270,7 @@ export class MidiHub {
          letting those fall through to the synth, anything arriving on a channel
          that Learn already established as a pad channel is folded into the pad
          range relative to the lowest note learned. */
-      if (this._padChannels().includes(channel)) {
+      if (this._isPadChannel(channel)) {
         const base = this._lowestPadNote();
         const idx = base == null ? note : note - base;
         return { target: 'pad', padIndex: ((idx % 16) + 16) % 16 };
@@ -260,6 +297,18 @@ export class MidiHub {
     }
 
     return { target: 'key' };
+  }
+
+  /**
+   * Is this channel carrying pads?
+   *
+   * Either the learned map already has an entry on it, or it is the channel
+   * configured under Mapping. The second half is what stops an empty map
+   * deadlocking: without it nothing can ever adopt, because adopting is the
+   * only thing that would make a channel known.
+   */
+  _isPadChannel(channel) {
+    return channel === settings.split.padChannel || this._padChannels().includes(channel);
   }
 
   /** Channels that the learned pad map covers. */
@@ -318,7 +367,7 @@ export class MidiHub {
     if (settings.pads.autoAdopt !== false
       && settings.split.mode === 'padmap'
       && settings.padMap[`${channel}:${note}`] == null
-      && this._padChannels().includes(channel)) {
+      && this._isPadChannel(channel)) {
       this.adoptPad(channel, note);
     }
 

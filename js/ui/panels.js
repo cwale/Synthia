@@ -322,6 +322,8 @@ function buildMapping(app, body, sheet) {
     ));
   }
 
+  body.append(buildPadReset(app, sheet));
+
   body.append(group('Unrecognised pads',
     switchRow('Adopt new pads automatically',
       'A pad the map has never seen claims the first free slot and is remembered. Lets a controller that scatters its pad notes map itself — just hit all sixteen once.',
@@ -403,6 +405,42 @@ function buildMapping(app, body, sheet) {
 /* ==========================================================================
    MIDI monitor
    ========================================================================== */
+
+/**
+ * The fastest route to a correct pad map: work out which channel the pads are
+ * on, wipe the slots, then let them fill in play order.
+ */
+function buildPadReset(app, sheet) {
+  const guess = app.hub.guessPadChannel();
+  const mapped = Object.keys(settings.padMap).length;
+
+  const detail = guess
+    ? `Your pads look like they are on channel ${guess.channel}${
+      guess.confident ? '' : ' (best guess — play a few pads first to be sure)'}.`
+    : 'Play a few pads first so the app can work out which channel they use.';
+
+  return group('Start the pads over',
+    row('Currently mapped', `${mapped} of 16 slots filled. Pad channel is set to ${settings.split.padChannel}.`, null),
+    buttonRow(
+      'Clear and remap',
+      `${detail} This empties every slot, then the next sixteen pads you hit become pads 1 to 16 in the order you hit them.`,
+      'Reset',
+      () => {
+        app.hub.resetPadSlots(guess ? guess.channel : null);
+        toast(guess
+          ? `Cleared. Now hit all 16 pads in order — listening on channel ${guess.channel}.`
+          : 'Cleared. Now hit all 16 pads in order.',
+          { kind: 'good', ms: 6000 });
+        sheet.refresh();
+      },
+    ),
+    sliderRow('Pad channel', 'Which MIDI channel your pads send on.', {
+      min: 1, max: 16, step: 1, value: settings.split.padChannel,
+      format: (v) => `ch ${v}`,
+      onInput: (v) => { settings.split.padChannel = v; commit('split'); },
+    }),
+  );
+}
 
 /**
  * The 16 pad slots with whatever note currently drives them, so a bulk Learn
