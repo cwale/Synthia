@@ -20,7 +20,10 @@ function describeMessage(status, d1, d2) {
   switch (type) {
     case 0x80: return { label: `Note off  ${noteLabel(d1)} (${d1})`, detail: `ch${ch} vel ${d2}` };
     case 0x90: return {
-      label: `${d2 === 0 ? 'Note off ' : 'Note on  '} ${noteLabel(d1)} (${d1})`,
+      // A note-on at velocity 0 means note-off by convention, but it is a
+      // different message on the wire and worth telling apart when a pad
+      // appears to send nothing playable.
+      label: `${d2 === 0 ? 'On@0 vel ' : 'Note on  '} ${noteLabel(d1)} (${d1})`,
       detail: `ch${ch} vel ${d2}`,
     };
     case 0xa0: return { label: `Poly AT   ${noteLabel(d1)} (${d1})`, detail: `ch${ch} ${d2}` };
@@ -160,6 +163,8 @@ export class MidiHub {
 
     this._remember(status, d1, d2);
     const desc = describeMessage(status, d1, d2);
+    // Raw hex removes any doubt about which message actually arrived.
+    desc.detail += `  ·  ${[status, d1, d2].map((b) => b.toString(16).padStart(2, '0')).join(' ')}`;
     this.monitor.unshift({ ...desc, bytes, at: timestamp || performance.now() });
     if (this.monitor.length > MONITOR_LIMIT) this.monitor.length = MONITOR_LIMIT;
     bus.emit('midi:raw', this.monitor[0]);
@@ -169,8 +174,23 @@ export class MidiHub {
 
     switch (type) {
       case 0x90:
-        if (d2 === 0) this._noteOff(channel, d1);
-        else this._noteOn(channel, d1, d2);
+        if (d2 === 0) {
+          /* Some controllers report a pad strike as note-on velocity 0, which
+             the spec reads as note-off — so the hit is silently discarded. On
+             the pad channel only, treat it as a real hit at a fixed velocity;
+             pads are one-shots, so the missing note-off costs nothing. Never
+             do this for keys, where the convention must be honoured. */
+          if (settings.pads.rescueZeroVelocity !== false
+            && this._isPadChannel(channel)
+            && this.classify(channel, d1).target === 'pad') {
+            this._noteOn(channel, d1, settings.pads.zeroVelocityLevel ?? 100);
+            this._noteOff(channel, d1);
+          } else {
+            this._noteOff(channel, d1);
+          }
+        } else {
+          this._noteOn(channel, d1, d2);
+        }
         break;
       case 0x80:
         this._noteOff(channel, d1);
@@ -200,12 +220,17 @@ export class MidiHub {
     const type = status & 0xf0;
     const ch = (status & 0x0f) + 1;
     let key = null;
-    if (type === 0x90 && d2 > 0) key = `note|${ch}|${d1}`;
+    if (type === 0x90) key = `note|${ch}|${d1}`;
     else if (type === 0xb0) key = `cc|${ch}|${d1}`;
     if (!key) return;
-    const entry = this.seen.get(key) || { kind: key.split('|')[0], channel: ch, number: d1, count: 0 };
+    const entry = this.seen.get(key)
+      || { kind: key.split('|')[0], channel: ch, number: d1, count: 0, zeroVel: 0, realVel: 0 };
     entry.count++;
     entry.lastValue = d2;
+    if (type === 0x90) {
+      if (d2 === 0) entry.zeroVel++;
+      else entry.realVel++;
+    }
     this.seen.set(key, entry);
   }
 

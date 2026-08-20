@@ -13,6 +13,7 @@ const SHELL = [
   './css/app.css',
   './js/main.js',
   './js/state.js',
+  './js/version.js',
   './js/util.js',
   './js/audio/engine.js',
   './js/audio/fx.js',
@@ -74,6 +75,12 @@ self.addEventListener('fetch', (event) => {
 
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
+
+  /* The version stamp exists to tell the app when this cache is stale, so
+     serving it from that same cache would defeat the point. Let it go to the
+     network untouched; if the network is down the app treats a failed check as
+     "no newer build", which is the right answer offline. */
+  if (url.pathname.endsWith('/version.json')) return;
 
   event.respondWith(
     caches.match(request, { ignoreSearch: true }).then((cached) => {
