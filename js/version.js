@@ -4,7 +4,7 @@
 
 export const VERSION = {
   id: '3d7a408',
-  builtAt: '2026-11-02T11:02:40Z',
+  builtAt: '2026-11-02T13:34:26Z',
 };
 
 /** "a1b2c3d · 20 Aug 14:32" for the splash, or just "dev" from an unstamped tree. */
