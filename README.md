@@ -125,6 +125,34 @@ Set up for the SMK-37 out of the box:
 Anything can be reassigned under **Mapping › Knobs and faders**: tap *Learn* on a
 row, move the control, done.
 
+### Endless knobs vs faders
+
+The SMK-37's four faders are slide potentiometers; its eight K knobs are
+**endless 360° encoders**. Those report position in incompatible ways, and
+nothing in the MIDI message says which you have:
+
+- a fader sends its absolute position, 0–127
+- an encoder has no position, so it sends *movement* — typically `1` for a click
+  clockwise and `127` for one anticlockwise
+
+Read an encoder as a fader and one click clockwise sets the target to 1/127 —
+almost zero — while one click back sets it to full. The knob appears to have two
+settings and no travel.
+
+Synthia works out which it has from what each control sends, and shows the verdict
+in **Mapping › Knobs and faders** and in the Monitor's controller summary.
+Detection is deliberately lopsided: absolute is the default and the only state
+reached without evidence, because misreading a fader as an encoder would make a
+working control drift. A control is only taken for an encoder once it has
+repeated at most two distinct in-band values — a moving fader produces a third
+almost immediately.
+
+While a control is still ambiguous its values are held rather than guessed at,
+which is what stops a knob slamming to an extreme on first touch. The cost is
+that a control sending a single in-band value per gesture — a button fixed at
+127, say — waits forever; set it to *Fader* under **Mapping › How each control
+reports**, where any control's mode can be forced either way.
+
 One trap worth knowing about, since it bites on this hardware: the faders sit on
 **CC64–67, which the MIDI spec reserves for the pedals** — CC64 *is* the sustain
 pedal. A control mapped in this app deliberately overrides the spec meaning for

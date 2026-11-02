@@ -22,6 +22,7 @@ export const defaults = {
   },
   padMap: {},                     // "channel:note" -> pad index, filled by Learn
   ccMap: { ...DEFAULT_CC_MAP },   // cc number -> macro name; Learn overwrites
+  ccMode: {},                     // cc number -> auto | absolute | twos | offset
 
   keyboard: {
     baseNote: 36,                 // leftmost key of the on-screen keyboard
