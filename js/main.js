@@ -286,7 +286,14 @@ class App {
     bus.on('midi:bend', ({ value }) => this.synth.setBend(value));
     bus.on('midi:panic', () => this.panic());
 
-    bus.on('midi:macro', ({ macro, value }) => this.setMacro(macro, value, { fromMidi: true }));
+    bus.on('midi:macro', ({ macro, value, delta }) => {
+      // An endless encoder sends movement rather than position, so it nudges
+      // whatever the target is on now instead of jumping it somewhere.
+      const next = delta != null
+        ? Math.min(1, Math.max(0, (settings.macros[macro] ?? 0) + delta))
+        : value;
+      this.setMacro(macro, next, { fromMidi: true });
+    });
 
     // Program change steps through the preset list — nice from a controller.
     bus.on('midi:program', ({ program }) => {

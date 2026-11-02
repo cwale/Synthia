@@ -193,11 +193,13 @@ await check('faders on CC64-67 drive macros, not the sustain pedal', async () =>
     let sustainEvents = 0;
     bus.on('midi:sustain', () => sustainEvents++);
 
-    // Fader 1 swept well past the halfway point that would latch a pedal.
-    send([0xb0, 64, 120]);
-    send([0xb0, 65, 100]);
-    send([0xb0, 66, 90]);
-    send([0xb0, 67, 40]);
+    // Faders swept well past the halfway point that would latch a pedal. A
+    // sweep rather than a jump because that is what a fader sends, and it is
+    // the third distinct value that proves it has a position at all.
+    for (const v of [30, 70, 100, 120]) send([0xb0, 64, v]);
+    for (const v of [25, 60, 85, 100]) send([0xb0, 65, v]);
+    for (const v of [20, 50, 75, 90]) send([0xb0, 66, v]);
+    for (const v of [10, 20, 30, 40]) send([0xb0, 67, v]);
     await new Promise((r) => setTimeout(r, 150));
     return {
       sustainEvents,
@@ -477,6 +479,157 @@ await check('a well-behaved pad fires exactly once', async () => {
   assert(res.length === 2, `two hits should produce two events, got ${JSON.stringify(res)}`);
   eq(res.map(([, v]) => v), [120, 110], 'rescue must not overwrite a real velocity');
   await page.click('#panic-btn');
+});
+
+// Endless encoders report movement, faders report position, and nothing in the
+// message says which. Getting this backwards is not subtle: an encoder read as
+// a fader lurches to an extreme on the first click.
+await check('a fader sweeps and an endless knob nudges', async () => {
+  const res = await page.evaluate(async () => {
+    const { midiHub } = await import('./js/midi/hub.js');
+    const { settings, bus } = await import('./js/state.js');
+    midiHub.ccProfiler.forget();
+    settings.ccMode = {};
+    settings.ccMap[20] = 'cutoff';     // pretend fader
+    settings.ccMap[21] = 'drive';      // pretend endless knob
+    settings.macros.cutoff = 0.5;
+    settings.macros.drive = 0.5;
+
+    const fake = { kind: 'webmidi', label: 'T', status: 'connected', deviceName: 'T', available: true, disconnect() {} };
+    midiHub.active = fake;
+    const send = (b) => midiHub._onMessage(b, performance.now(), fake);
+    const seen = [];
+    const off = bus.on('midi:macro', (e) => seen.push(e));
+
+    // A fader sweeping: distinct mid-range positions.
+    for (const v of [10, 31, 55, 70, 96, 118]) send([0xb0, 20, v]);
+    await new Promise((r) => setTimeout(r, 60));
+    const faderMode = midiHub.ccMode(20);
+    const cutoff = settings.macros.cutoff;
+
+    // An endless knob turned clockwise: the same tiny value, over and over.
+    for (let i = 0; i < 8; i++) send([0xb0, 21, 1]);
+    await new Promise((r) => setTimeout(r, 60));
+    const knobMode = midiHub.ccMode(21);
+    const driveUp = settings.macros.drive;
+
+    // …then anticlockwise, which must come back down rather than jump to full.
+    for (let i = 0; i < 4; i++) send([0xb0, 21, 127]);
+    await new Promise((r) => setTimeout(r, 60));
+    off();
+    delete settings.ccMap[20];
+    delete settings.ccMap[21];
+    return {
+      faderMode, knobMode, cutoff, driveUp, driveDown: settings.macros.drive,
+      deltas: seen.filter((e) => e.cc === 21).map((e) => e.delta),
+      absolutes: seen.filter((e) => e.cc === 20).map((e) => e.value),
+    };
+  });
+  console.log('        ', JSON.stringify(res));
+  eq(res.faderMode, 'absolute', 'a sweeping fader must stay absolute');
+  assert(res.knobMode !== 'absolute', `a repeating 1 should read as an encoder, got ${res.knobMode}`);
+  assert(Math.abs(res.cutoff - 118 / 127) < 1e-6, `fader should land on its position: ${res.cutoff}`);
+  assert(res.absolutes.length === 6 && res.absolutes.every((v) => v != null),
+    `a fader must emit a position for every message: ${JSON.stringify(res.absolutes)}`);
+  // The first click is held, not applied as a position — that is what stops the
+  // knob slamming to an extreme on first touch. Detection settles a few clicks
+  // in and everything after that is movement.
+  assert(res.deltas.length > 0 && res.deltas.length < 12,
+    `early clicks should be held, 12 were sent: ${JSON.stringify(res.deltas)}`);
+  assert(res.deltas.every((d) => typeof d === 'number'),
+    `an encoder must never emit a position: ${JSON.stringify(res.deltas)}`);
+  assert(res.driveUp > 0.5 && res.driveUp < 0.7,
+    `clockwise should nudge up from 0.5, not jump: ${res.driveUp}`);
+  assert(res.driveDown < res.driveUp, `anticlockwise must come back down: ${res.driveDown}`);
+  await page.click('#panic-btn');
+});
+
+// The documented cost of holding ambiguous values: a control that sends one
+// in-band value per gesture can't be told from an encoder's first click, so it
+// waits. Pinned down here so the trade-off is visible rather than a surprise.
+await check('a single in-band value waits, and the override frees it', async () => {
+  const res = await page.evaluate(async () => {
+    const { midiHub } = await import('./js/midi/hub.js');
+    const { settings } = await import('./js/state.js');
+    midiHub.ccProfiler.forget();
+    settings.ccMode = {};
+    settings.ccMap[24] = 'reverb';
+    settings.macros.reverb = 0.3;
+    const fake = { kind: 'webmidi', label: 'T', status: 'connected', deviceName: 'T', available: true, disconnect() {} };
+    midiHub.active = fake;
+    const send = (b) => midiHub._onMessage(b, performance.now(), fake);
+
+    send([0xb0, 24, 127]);                 // a button, stuck at full
+    await new Promise((r) => setTimeout(r, 60));
+    const held = settings.macros.reverb;
+
+    settings.ccMode = { 24: 'absolute' };  // what the user would set by hand
+    send([0xb0, 24, 127]);
+    await new Promise((r) => setTimeout(r, 60));
+    const freed = settings.macros.reverb;
+
+    settings.ccMode = {};
+    delete settings.ccMap[24];
+    settings.macros.reverb = 0.3;
+    return { held, freed };
+  });
+  console.log('        ', JSON.stringify(res));
+  assert(Math.abs(res.held - 0.3) < 1e-6, `one ambiguous value should wait: ${res.held}`);
+  assert(Math.abs(res.freed - 1) < 1e-6, `the override should apply it: ${res.freed}`);
+});
+
+await check('a hand-set encoder mode overrides detection', async () => {
+  const res = await page.evaluate(async () => {
+    const { midiHub } = await import('./js/midi/hub.js');
+    const { settings, bus } = await import('./js/state.js');
+    midiHub.ccProfiler.forget();
+    settings.ccMap[22] = 'reverb';
+    settings.ccMode = { 22: 'twos' };
+    settings.macros.reverb = 0.5;
+
+    const fake = { kind: 'webmidi', label: 'T', status: 'connected', deviceName: 'T', available: true, disconnect() {} };
+    midiHub.active = fake;
+    const send = (b) => midiHub._onMessage(b, performance.now(), fake);
+    const seen = [];
+    const off = bus.on('midi:macro', (e) => seen.push(e));
+    // Values a fader would send; the override must still read them as movement.
+    for (const v of [10, 31, 55]) send([0xb0, 22, v]);
+    await new Promise((r) => setTimeout(r, 60));
+    off();
+    const mode = midiHub.ccMode(22);
+    settings.ccMode = {};
+    delete settings.ccMap[22];
+    return { mode, deltas: seen.map((e) => e.delta) };
+  });
+  console.log('        ', JSON.stringify(res));
+  eq(res.mode, 'twos', 'the hand-set mode must win over detection');
+  assert(res.deltas.every((d) => typeof d === 'number'), `expected deltas, got ${JSON.stringify(res.deltas)}`);
+});
+
+await check('a fader nudged near the top stays a fader', async () => {
+  const res = await page.evaluate(async () => {
+    const { midiHub } = await import('./js/midi/hub.js');
+    const { settings } = await import('./js/state.js');
+    midiHub.ccProfiler.forget();
+    settings.ccMode = {};
+    settings.ccMap[23] = 'volume';
+    settings.macros.volume = 0.5;
+    const fake = { kind: 'webmidi', label: 'T', status: 'connected', deviceName: 'T', available: true, disconnect() {} };
+    midiHub.active = fake;
+    const send = (b) => midiHub._onMessage(b, performance.now(), fake);
+    // Entirely inside the band an encoder would use, but stepping like a fader.
+    for (const v of [121, 122, 123, 124, 125]) send([0xb0, 23, v]);
+    await new Promise((r) => setTimeout(r, 80));
+    const mode = midiHub.ccMode(23);
+    const volume = settings.macros.volume;
+    delete settings.ccMap[23];
+    settings.macros.volume = 0.85;
+    return { mode, volume };
+  });
+  console.log('        ', JSON.stringify(res));
+  eq(res.mode, 'absolute', 'a stepping fader must not be mistaken for an encoder');
+  assert(Math.abs(res.volume - 125 / 127) < 0.02,
+    `it should track its position, not drift: ${res.volume}`);
 });
 
 await check('version label renders on the splash', async () => {

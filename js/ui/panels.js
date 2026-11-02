@@ -11,7 +11,8 @@ import { platform, noteLabel, SCALES, pitchClassName, formatTime } from '../util
 import { PRESETS, PRESET_CATEGORIES, BASH_SOUNDS } from '../audio/presets.js';
 import { KITS, getKit } from '../audio/kits.js';
 import { PATTERNS } from '../audio/groove.js';
-import { MACRO_TARGETS } from '../audio/macros.js';
+import { MACRO_TARGETS, MACRO_BY_KEY } from '../audio/macros.js';
+import { CC_MODES } from '../midi/encoders.js';
 
 const STATUS_TEXT = {
   idle: 'Not connected',
@@ -544,11 +545,16 @@ function buildControlMap(app, sheet) {
   for (const target of MACRO_TARGETS) {
     const cc = ccFor.get(target.key);
     const isLearning = learningTarget === target.key;
+    const mode = cc != null ? app.hub.ccMode(cc) : null;
+    const settled = cc != null && app.hub.ccProfiler.settled(cc);
+    const kind = mode && mode !== 'absolute'
+      ? ' · endless knob'
+      : settled ? ' · fader' : '';
     rows.push(row(
       target.name,
       isLearning
         ? 'Move the knob or fader you want…'
-        : `${target.blurb}${cc != null ? ` — CC ${cc}` : ' — unassigned'}`,
+        : `${target.blurb}${cc != null ? ` — CC ${cc}${kind}` : ' — unassigned'}`,
       h('button.btn.btn--ghost', {
         style: { padding: '8px 13px', fontSize: '12px', flex: '0 0 auto' },
         onclick: () => {
@@ -561,7 +567,43 @@ function buildControlMap(app, sheet) {
   }
 
   return group('Knobs and faders', ...rows,
-    note('Set up for an M-VAVE SMK-37 out of the box: faders 1–4 drive the four on-screen knobs, and K1–K8 drive the rest. Learn overrides any of it. A control mapped here always wins over the MIDI spec’s meaning for that CC number — which matters because the faders sit on CC64–67, where CC64 is officially the sustain pedal.'));
+    note('Set up for an M-VAVE SMK-37 out of the box: faders 1–4 drive the four on-screen knobs, and K1–K8 drive the rest. Learn overrides any of it. A control mapped here always wins over the MIDI spec’s meaning for that CC number — which matters because the faders sit on CC64–67, where CC64 is officially the sustain pedal.'),
+    buildEncoderOverride(app, sheet));
+}
+
+/**
+ * Endless knobs and faders report position in incompatible ways and nothing in
+ * the message says which you have, so the app works it out from what arrives.
+ * This is the escape hatch for when it gets it wrong.
+ */
+function buildEncoderOverride(app, sheet) {
+  const mapped = Object.keys(settings.ccMap)
+    .map(Number)
+    .filter((cc) => MACRO_BY_KEY.has(settings.ccMap[cc]))
+    .sort((a, b) => a - b);
+  if (!mapped.length) return null;
+
+  const rows = mapped.map((cc) => {
+    const current = settings.ccMode?.[cc] || 'auto';
+    const detected = app.hub.ccProfiler.modeFor(cc);
+    const settled = app.hub.ccProfiler.settled(cc);
+    const sub = current === 'auto'
+      ? settled
+        ? `Detected: ${detected === 'absolute' ? 'a fader' : 'an endless knob'}.`
+        : 'Not seen yet — move it and this will say what it looks like.'
+      : 'Set by hand.';
+    return segRow(`CC ${cc} → ${MACRO_BY_KEY.get(settings.ccMap[cc]).name}`, sub,
+      CC_MODES.map((m) => ({ label: m.name, value: m.key })),
+      current,
+      (v) => {
+        settings.ccMode = { ...settings.ccMode, [cc]: v };
+        commit('ccMode');
+        sheet.refresh();
+      });
+  });
+
+  return group('How each control reports', ...rows,
+    note('An endless knob sends how far it moved; a fader sends where it is. Read the wrong way round, an endless knob jumps to one extreme or the other instead of sweeping — if a K knob does that, set it to Encoder here. Auto defaults to Fader until a control proves otherwise, so it never makes a working fader drift.'));
 }
 
 function buildMonitor(app, body) {
@@ -621,6 +663,12 @@ function buildSeenSummary(app, body) {
         const macro = settings.ccMap[entry.number];
         what = macro ? `knob → ${macro}` : 'unassigned CC';
         if (macro) tone = 'var(--accent-2)';
+        // Which way it is being read matters more than the number: an endless
+        // knob read as a fader lurches to an extreme instead of sweeping.
+        if (app.hub.ccProfiler.settled(entry.number)) {
+          const mode = app.hub.ccMode(entry.number);
+          what += mode === 'absolute' ? ' · fader' : ' · endless knob';
+        }
       } else if (entry.kind === 'polyat') {
         what = 'aftertouch — pad pressure';
         tone = 'var(--accent-2)';

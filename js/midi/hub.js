@@ -7,6 +7,7 @@
 
 import { bus, settings, commit } from '../state.js';
 import { MACRO_BY_KEY } from '../audio/macros.js';
+import { CcProfiler, relativeDelta } from './encoders.js';
 import { noteLabel, platform } from '../util.js';
 import { WebMidiTransport } from './webmidi.js';
 import { BleMidiTransport } from './blemidi.js';
@@ -46,6 +47,8 @@ export class MidiHub {
     this.seen = new Map();
     this.learn = null;
     this._activeNotes = new Set();
+    /** Works out which CCs are endless encoders rather than faders. */
+    this.ccProfiler = new CcProfiler();
 
     for (const t of [this.webmidi, this.ble, this.native]) {
       t.onMessage = (bytes, ts) => this._onMessage(bytes, ts, t);
@@ -442,6 +445,19 @@ export class MidiHub {
     else bus.emit('midi:key-off', { note, channel });
   }
 
+  /**
+   * How to read this CC: the user's choice if they made one, otherwise what
+   * the profiler has worked out. Passing a value also records it as evidence.
+   */
+  ccMode(cc, value = null) {
+    const forced = settings.ccMode?.[cc];
+    if (forced && forced !== 'auto') {
+      if (value != null) this.ccProfiler.observe(cc, value);   // keep the summary honest
+      return forced;
+    }
+    return value == null ? this.ccProfiler.modeFor(cc) : this.ccProfiler.observe(cc, value);
+  }
+
   _controlChange(channel, cc, value) {
     if (this.learn?.mode === 'cc') {
       settings.ccMap[cc] = this.learn.target;
@@ -458,7 +474,31 @@ export class MidiHub {
        pedals. Checking the map first is what stops fader 1 latching sustain. */
     const macro = settings.ccMap[cc];
     if (macro && MACRO_BY_KEY.has(macro)) {
-      bus.emit('midi:macro', { macro, value: value / 127, cc });
+      const forced = settings.ccMode?.[cc] && settings.ccMode[cc] !== 'auto';
+      const mode = this.ccMode(cc, value);
+
+      /* Until a control has shown which kind it is, a value that both kinds
+         could have sent is held rather than guessed at. Guessing absolute is
+         what makes an endless knob's first clicks slam the target to an
+         extreme, which would happen on first touch of every knob, every
+         session. Holding costs a fader nothing — its first mid-range value
+         rules it absolute, and a sweep produces one immediately. The one
+         casualty is a control that sends a single in-band value per gesture,
+         such as a button fixed at 127; set that to Fader by hand. */
+      if (mode === 'absolute' && !forced && !this.ccProfiler.settled(cc)) {
+        bus.emit('midi:cc', { cc, value, channel });
+        return;
+      }
+
+      if (mode === 'absolute') {
+        bus.emit('midi:macro', { macro, value: value / 127, cc });
+      } else {
+        /* An endless knob reports movement, not position, so it can only ask
+           for a change. One click is a 64th of the range, which gives a
+           sensible sweep over a turn without being too coarse to trim with. */
+        const clicks = relativeDelta(value, mode);
+        if (clicks) bus.emit('midi:macro', { macro, delta: clicks / 64, cc });
+      }
       bus.emit('midi:cc', { cc, value, channel });
       return;
     }

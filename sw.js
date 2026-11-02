@@ -4,7 +4,7 @@
    and must not care whether there is signal, so freshness comes second — a new
    version is picked up on the next launch. */
 
-const VERSION = 'synthia-0bd3ab6';
+const VERSION = 'synthia-3d7a408';
 
 const SHELL = [
   './',
@@ -27,6 +27,7 @@ const SHELL = [
   './js/audio/groove.js',
   './js/audio/recorder.js',
   './js/midi/hub.js',
+  './js/midi/encoders.js',
   './js/midi/webmidi.js',
   './js/midi/blemidi.js',
   './js/midi/native.js',
