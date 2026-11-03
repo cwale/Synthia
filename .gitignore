@@ -7,3 +7,6 @@ android/
 
 .DS_Store
 *.log
+
+# Patches generated to move work out of a session that cannot push
+*.patch

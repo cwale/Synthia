@@ -320,27 +320,21 @@ export class MidiHub {
   }
 
   /**
-   * Is this channel carrying pads?
+   * May an unmapped note on this channel be taken for a pad?
    *
-   * Either the learned map already has an entry on it, or it is the channel
-   * configured under Mapping. The second half is what stops an empty map
-   * deadlocking: without it nothing can ever adopt, because adopting is the
-   * only thing that would make a channel known.
+   * Only on the channel configured under Mapping. It used to include any
+   * channel the learned map had an entry on, which broke the moment a
+   * controller put pads on the same channel as its keys: the SMK-37 sends
+   * pads 5-16 on channel 1 alongside the keys, so once Learn had recorded one
+   * of them, every key became a guessed pad. A learned pad is recognised on
+   * whatever channel it was learned on regardless — this only governs guessing
+   * about notes the map has never seen. Using the configured channel, rather
+   * than needing a map entry, is also what stops an empty map deadlocking.
    */
   _isPadChannel(channel) {
-    return channel === settings.split.padChannel || this._padChannels().includes(channel);
+    return channel === settings.split.padChannel;
   }
 
-  /** Channels that the learned pad map covers. */
-  _padChannels() {
-    if (this._padChannelCache) return this._padChannelCache;
-    const set = new Set();
-    for (const key of Object.keys(settings.padMap)) {
-      set.add(Number(key.split(':')[0]));
-    }
-    this._padChannelCache = [...set];
-    return this._padChannelCache;
-  }
 
   _lowestPadNote() {
     const notes = Object.keys(settings.padMap).map((k) => Number(k.split(':')[1]));
@@ -428,9 +422,22 @@ export class MidiHub {
 
   _endNote(channel, note) {
     const held = this._activeNotes.has(`${channel}:${note}`);
+
+    /* Learn is how a pad on an unexpected channel gets recognised at all, so
+       it has to see these hits too. The SMK-37 sends pads 1-4 as note-on at
+       velocity 0 on a channel of their own; filtering those out here, before
+       Learn could record them, left no way to ever map those four. Learn
+       ignores a repeat of a pad it has already recorded, so a well-formed
+       pad's release arriving here as well does no harm. */
+    if (!held && (this.learn?.mode === 'pads' || this.learn?.mode === 'pad-one')) {
+      this._noteOn(channel, note, settings.pads.zeroVelocityLevel ?? 100);
+      return;
+    }
+
+    // classify alone decides: a learned pad is a pad on any channel, and an
+    // unmapped note only counts on the configured pad channel.
     if (!held
       && settings.pads.rescueZeroVelocity !== false
-      && this._isPadChannel(channel)
       && this.classify(channel, note).target === 'pad') {
       this._noteOn(channel, note, settings.pads.zeroVelocityLevel ?? 100);
     }

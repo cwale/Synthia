@@ -688,7 +688,10 @@ function buildSeenSummary(app, body) {
           const how = entry.offs > 0 && entry.zeroVel === 0 ? 'note-off only' : 'always velocity 0';
           what += rescued
             ? ` · ${how}, played at ${settings.pads.zeroVelocityLevel ?? 100}`
-            : ` · ${how}, silent`;
+            : cls.target === 'pad'
+              ? ` · ${how}, silent`
+              // Not a pad as far as the app knows, which is why it is silent.
+              : ` · ${how} — run Learn my pads to use it`;
           tone = rescued ? 'var(--accent)' : 'var(--hot)';
         }
       }

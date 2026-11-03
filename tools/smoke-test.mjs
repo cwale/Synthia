@@ -236,6 +236,8 @@ await check('stray pads still land on the pad grid', async () => {
     settings.padMap = {};
     for (let i = 0; i < 12; i++) settings.padMap[`2:${36 + i}`] = i;
     settings.split.mode = 'padmap';
+    // Guessing at unmapped notes only happens on the configured pad channel.
+    settings.split.padChannel = 2;
     midiHub._invalidatePadCache();
     commit('padMap');
 
@@ -630,6 +632,59 @@ await check('a fader nudged near the top stays a fader', async () => {
   eq(res.mode, 'absolute', 'a stepping fader must not be mistaken for an encoder');
   assert(Math.abs(res.volume - 125 / 127) < 0.02,
     `it should track its position, not drift: ${res.volume}`);
+});
+
+// Replays the monitor capture that found this: pads 1-4 as a lone note-on at
+// velocity 0 on channel 2, the other pads as proper presses on channel 1 —
+// the key channel — and nothing configured as the pad channel.
+await check('Learn maps pads split across the key channel and a vel-0 channel', async () => {
+  const res = await page.evaluate(async () => {
+    const { midiHub } = await import('./js/midi/hub.js');
+    const { settings, bus } = await import('./js/state.js');
+    midiHub.releaseAll();
+    settings.padMap = {};
+    settings.split.mode = 'channel';
+    settings.split.padChannel = 10;
+    settings.pads.rescueZeroVelocity = true;
+    settings.pads.zeroVelocityLevel = 100;
+
+    const fake = { kind: 'webmidi', label: 'T', status: 'connected', deviceName: 'T', available: true, disconnect() {} };
+    midiHub.active = fake;
+    const send = (b) => midiHub._onMessage(b, performance.now(), fake);
+    const tick = () => new Promise((r) => setTimeout(r, 30));
+    const hitPad = async (n) => {
+      if (n < 4) send([0x91, 16 + n, 0]);                                 // pads 1-4
+      else { send([0x90, 107 + n, 60]); await tick(); send([0x80, 107 + n, 64]); } // 111..
+      await tick();
+    };
+
+    // Before Learn: exactly the silent state in the screenshot.
+    const before = [];
+    let off = bus.on('midi:pad-on', ({ padIndex }) => before.push(padIndex));
+    await hitPad(0);
+    off();
+
+    midiHub.startPadLearn();
+    for (let n = 0; n < 8; n++) await hitPad(n);
+    const learned = midiHub.finishLearn();
+
+    const pads = [];
+    const keys = [];
+    off = bus.on('midi:pad-on', ({ padIndex, velocity }) => pads.push([padIndex, velocity]));
+    const offKey = bus.on('midi:key-on', ({ note }) => keys.push(note));
+    for (let n = 0; n < 8; n++) await hitPad(n);
+    send([0x90, 48, 90]); await tick(); send([0x80, 48, 64]);           // a real key
+    await tick();
+    off(); offKey();
+    return { before, learned, pads, keys, map: { ...settings.padMap } };
+  });
+  console.log('        ', JSON.stringify(res));
+  eq(res.before, [], 'with no map, the channel-2 pads are not pads yet');
+  eq(res.learned, 8, 'Learn must record all eight, including the velocity-0 ones');
+  eq(res.pads.map(([i]) => i), [0, 1, 2, 3, 4, 5, 6, 7], 'each pad lands on its learned slot');
+  assert(res.pads.slice(0, 4).every(([, v]) => v === 100), `vel-0 pads play at the set level: ${JSON.stringify(res.pads)}`);
+  eq(res.keys, [48], 'a key on channel 1 still plays the synth');
+  await page.click('#panic-btn');
 });
 
 await check('version label renders on the splash', async () => {
