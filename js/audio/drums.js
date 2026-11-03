@@ -112,7 +112,9 @@ const VOICES = {
     osc.frequency.setValueAtTime(tune * 3.2, t);
     osc.frequency.exponentialRampToValueAtTime(tune, t + 0.055);
     const g = shot.add(shot.ctx.createGain());
-    shot.env(g, t, vel, decay, 0.002);
+    // 0.85, not 1: body and click together reached full scale on a hard hit,
+    // and over it in some browsers.
+    shot.env(g, t, vel * 0.85, decay, 0.002);
     osc.connect(g).connect(shot.out);
 
     // Beater click, so it still reads on a phone speaker with no low end.

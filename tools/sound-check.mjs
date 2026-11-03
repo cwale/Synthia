@@ -140,7 +140,8 @@ async function main() {
      * autocorrelation, inharmonic overtones can't drag this estimate.
      */
     function pitchOf(a, expectHz) {
-      const N = 16384;
+      // A 16k window resolves about 70 cents per bin at 65 Hz; low notes need more.
+      const N = expectHz < 130 ? 32768 : 16384;
       const mag = spectrum(a, Math.floor(SR * 0.05), N);
       const binHz = SR / N;
       const lo = Math.max(2, Math.floor((expectHz * 2 ** (-1.5 / 12)) / binHz));
@@ -196,12 +197,17 @@ async function main() {
       else if (row.peak > 1) row.problems.push(`clips (peak ${row.peak.toFixed(2)})`);
 
       if (acoustic && !INHARMONIC.includes(patch.id) && !DETUNED.includes(patch.id)) {
-        const tol = patch.engine === 'sampler' ? RTOL : TOL;
+        /* An ensemble patch (several strings deliberately detuned against each
+           other, each excited by random noise) has no single pitch: which string
+           dominates changes from pluck to pluck. Its tolerance includes the
+           spread it was given on purpose. */
+        const spread = Math.max(0, ...(patch.string?.strings || []).map((s) => Math.abs(s.cents || 0)));
+        const tol = (patch.engine === 'sampler' ? RTOL : TOL) + spread;
         for (const note of [36, 48, 60, 72, 84]) {
           const sounding = note + (patch.transpose || 0);
           const hz = noteToFreq(sounding);
           if (hz > 3000 || hz < 40) continue;
-          const { mono } = await render(0.5, playNote(patch, note, 0.7));
+          const { mono } = await render(hz < 130 ? 0.9 : 0.5, playNote(patch, note, 0.7));
           const got = pitchOf(mono, hz);
           if (!got) { row.problems.push(`no pitch found at note ${note}`); continue; }
           const cents = 1200 * Math.log2(got / hz);
