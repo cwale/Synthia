@@ -1,31 +1,10 @@
 import { ACOUSTIC_PRESETS } from './acoustic-presets.js';
+import { GENRE_PRESETS } from './genre-presets.js';
 
 /* Synth patches. `send` values seed the reverb/delay macros when a patch is
    loaded, the way a hardware preset recalls its effect levels. */
 
 const SYNTH_PRESETS = [
-  {
-    id: 'warm-keys',
-    name: 'Warm Keys',
-    category: 'Keys',
-    color: '#f0a860',
-    blurb: 'Soft synthesised keys. Warmer and simpler than the real electric piano.',
-    gain: 0.19,
-    oscs: [
-      { type: 'sawtooth', semi: 0, cents: -4, level: 0.7 },
-      { type: 'triangle', semi: 0, cents: 5, level: 0.6 },
-    ],
-    sub: { type: 'sine', level: 0.28, octave: -1 },
-    noise: 0,
-    filter: { type: 'lowpass', hz: 1500, q: 1.2, env: 2200, keytrack: 0.35, envA: 0.004, envD: 0.5, envS: 0.35, envR: 0.4 },
-    amp: { a: 0.006, d: 0.45, s: 0.5, r: 0.45 },
-    lfo: { type: 'sine', rate: 5, target: 'pitch', amount: 0, delay: 0 },
-    unison: { voices: 1, spread: 0 },
-    vel: { amp: 0.8, filter: 0.6 },
-    send: { reverb: 0.26, delay: 0.08 },
-    macroCutoff: 0.74,
-    panSpread: 0.15,
-  },
   {
     id: 'glass-bells',
     name: 'Glass Bells',
@@ -108,7 +87,9 @@ const SYNTH_PRESETS = [
     filter: { type: 'lowpass', hz: 2600, q: 2, env: 4200, keytrack: 0.3, envA: 0.01, envD: 0.4, envS: 0.5, envR: 0.35 },
     amp: { a: 0.012, d: 0.3, s: 0.72, r: 0.32 },
     lfo: { type: 'sine', rate: 5.4, target: 'pitch', amount: 0.12, delay: 0.5 },
-    unison: { voices: 3, spread: 20 },
+    // Two unison voices, not three: six saws per note instead of nine, the
+    // single most expensive patch, and the chorus covers the difference.
+    unison: { voices: 2, spread: 26 },
     vel: { amp: 0.7, filter: 0.6 },
     chorus: 0.35,
     send: { reverb: 0.3, delay: 0.3 },
@@ -185,91 +166,9 @@ const SYNTH_PRESETS = [
     macroCutoff: 0.55,
     panSpread: 0,
   },
-  {
-    id: 'cosmic-pluck',
-    name: 'Cosmic Pluck',
-    category: 'Lead',
-    color: '#7cf2d8',
-    blurb: 'Short pluck drenched in delay. Great with the arp.',
-    gain: 0.19,
-    oscs: [
-      { type: 'sawtooth', semi: 0, cents: -3, level: 0.7 },
-      { type: 'square', semi: 7, cents: 4, level: 0.25 },
-    ],
-    sub: { type: 'sine', level: 0.18, octave: -1 },
-    noise: 0,
-    filter: { type: 'lowpass', hz: 900, q: 6, env: 6000, keytrack: 0.4, envA: 0.001, envD: 0.16, envS: 0.05, envR: 0.15 },
-    amp: { a: 0.002, d: 0.3, s: 0.08, r: 0.3 },
-    vel: { amp: 0.8, filter: 0.75 },
-    chorus: 0.28,
-    send: { reverb: 0.35, delay: 0.42 },
-    macroCutoff: 0.72,
-    panSpread: 0.4,
-  },
 
   /* ---- experimental, fun and frankly silly ------------------------------ */
 
-  {
-    id: 'rubber-duck',
-    name: 'Rubber Duck',
-    category: 'Silly',
-    color: '#ffe14d',
-    blurb: 'Squeaky, indignant, faintly rude.',
-    gain: 1.8,
-    oscs: [
-      { type: 'square', semi: 12, cents: 0, level: 0.7 },
-      { type: 'sawtooth', semi: 19, cents: 12, level: 0.3 },
-    ],
-    sub: { type: 'sine', level: 0, octave: -1 },
-    noise: 0.04,
-    pitchEnv: { semis: -7, time: 0.09 },
-    filter: { type: 'bandpass', hz: 1700, q: 6, env: 2400, keytrack: 0.6, envA: 0.005, envD: 0.1, envS: 0.4, envR: 0.1 },
-    amp: { a: 0.008, d: 0.12, s: 0.5, r: 0.12 },
-    lfo: { type: 'sine', rate: 13, target: 'pitch', amount: 0.3, delay: 0.05 },
-    vel: { amp: 0.7, filter: 0.5 },
-    send: { reverb: 0.12, delay: 0.05 },
-    macroCutoff: 0.8,
-    panSpread: 0.2,
-  },
-  {
-    id: 'dial-up',
-    name: 'Dial-Up',
-    category: 'Silly',
-    color: '#8be04e',
-    blurb: 'Screeching FM nonsense. Sounds like 1998 connecting.',
-    gain: 1.1,
-    oscs: [{ type: 'square', semi: 0, cents: 0, level: 1 }],
-    sub: { type: 'sine', level: 0, octave: -1 },
-    noise: 0.06,
-    fm: { type: 'square', ratio: 5.43, index: 1800, decay: 0 },
-    ring: { ratio: 2.7, amount: 0.6 },
-    filter: { type: 'bandpass', hz: 2000, q: 3, env: 3000, keytrack: 0.3, envA: 0.02, envD: 0.6, envS: 0.6, envR: 0.2 },
-    amp: { a: 0.01, d: 0.2, s: 0.8, r: 0.15 },
-    lfo: { type: 'square', rate: 9, target: 'filter', amount: 0.6, delay: 0 },
-    vel: { amp: 0.5, filter: 0.4 },
-    send: { reverb: 0.2, delay: 0.25 },
-    macroCutoff: 0.8,
-    panSpread: 0.4,
-  },
-  {
-    id: 'slide-whistle',
-    name: 'Slide Whistle',
-    category: 'Silly',
-    color: '#ff9de2',
-    blurb: 'Swoops up into every note. Cartoon pratfalls included.',
-    gain: 0.15,
-    oscs: [{ type: 'sine', semi: 0, cents: 0, level: 1 }],
-    sub: { type: 'sine', level: 0, octave: -1 },
-    noise: 0.05,
-    pitchEnv: { semis: -14, time: 0.16 },
-    filter: { type: 'lowpass', hz: 3000, q: 4, env: 1200, keytrack: 0.8, envA: 0.02, envD: 0.3, envS: 0.7, envR: 0.2 },
-    amp: { a: 0.02, d: 0.1, s: 0.85, r: 0.18 },
-    lfo: { type: 'sine', rate: 6.5, target: 'pitch', amount: 0.22, delay: 0.25 },
-    vel: { amp: 0.6, filter: 0.3 },
-    send: { reverb: 0.35, delay: 0.15 },
-    macroCutoff: 0.85,
-    panSpread: 0.25,
-  },
   {
     id: 'robot-burp',
     name: 'Robot Burp',
@@ -293,194 +192,25 @@ const SYNTH_PRESETS = [
     macroCutoff: 0.55,
     panSpread: 0.3,
   },
-  {
-    id: 'angry-bee',
-    name: 'Angry Bee',
-    category: 'Silly',
-    color: '#ffcc33',
-    blurb: 'Buzzing menace in a jar. Hold a chord at your peril.',
-    gain: 1.2,
-    oscs: [
-      { type: 'sawtooth', semi: 0, cents: -18, level: 0.6 },
-      { type: 'sawtooth', semi: 0, cents: 21, level: 0.6 },
-    ],
-    sub: { type: 'sine', level: 0, octave: -1 },
-    noise: 0,
-    ring: { ratio: 1.02, amount: 0.35 },
-    filter: { type: 'bandpass', hz: 900, q: 7, env: 1500, keytrack: 0.5, envA: 0.03, envD: 0.4, envS: 0.6, envR: 0.2 },
-    amp: { a: 0.02, d: 0.1, s: 0.9, r: 0.15 },
-    lfo: { type: 'sine', rate: 27, target: 'filter', amount: 0.45, delay: 0 },
-    vel: { amp: 0.5, filter: 0.6 },
-    send: { reverb: 0.18, delay: 0.1 },
-    macroCutoff: 0.6,
-    panSpread: 0.5,
-  },
-  {
-    id: 'ghost-theremin',
-    name: 'Ghost Theremin',
-    category: 'Experimental',
-    color: '#b6a7ff',
-    blurb: 'Wavering, seasick and haunted. Best played slowly.',
-    gain: 0.14,
-    oscs: [{ type: 'sine', semi: 0, cents: 0, level: 1 }],
-    sub: { type: 'sine', level: 0.15, octave: -1 },
-    noise: 0.01,
-    pitchEnv: { semis: -3, time: 0.5 },
-    filter: { type: 'lowpass', hz: 1800, q: 5, env: 600, keytrack: 0.5, envA: 0.4, envD: 0.8, envS: 0.7, envR: 0.8 },
-    amp: { a: 0.3, d: 0.4, s: 0.85, r: 1.2 },
-    lfo: { type: 'sine', rate: 4.8, target: 'pitch', amount: 0.55, delay: 0.15 },
-    vel: { amp: 0.4, filter: 0.3 },
-    send: { reverb: 0.7, delay: 0.35 },
-    chorus: 0.4,
-    macroCutoff: 0.72,
-    panSpread: 0.55,
-  },
-  {
-    id: 'broken-tape',
-    name: 'Broken Tape',
-    category: 'Experimental',
-    color: '#d98f6b',
-    blurb: 'Warped, drifting and slightly unwell.',
-    gain: 0.15,
-    oscs: [
-      { type: 'triangle', semi: 0, cents: -25, level: 0.7 },
-      { type: 'sawtooth', semi: 0, cents: 31, level: 0.35 },
-      { type: 'sine', semi: -12, cents: 0, level: 0.3 },
-    ],
-    sub: { type: 'sine', level: 0.15, octave: -1 },
-    noise: 0.05,
-    filter: { type: 'lowpass', hz: 1100, q: 3, env: 700, keytrack: 0.3, envA: 0.08, envD: 0.7, envS: 0.5, envR: 0.6 },
-    amp: { a: 0.05, d: 0.5, s: 0.6, r: 0.7 },
-    lfo: { type: 'triangle', rate: 0.7, target: 'pitch', amount: 0.5, delay: 0 },
-    vel: { amp: 0.5, filter: 0.4 },
-    send: { reverb: 0.45, delay: 0.3 },
-    chorus: 0.6,
-    macroCutoff: 0.6,
-    panSpread: 0.6,
-  },
-  {
-    id: 'metal-mouth',
-    name: 'Metal Mouth',
-    category: 'Experimental',
-    color: '#9fb8c8',
-    blurb: 'Clanging inharmonic ring mod. Gamelan from a scrapyard.',
-    gain: 0.14,
-    oscs: [{ type: 'triangle', semi: 0, cents: 0, level: 1 }],
-    sub: { type: 'sine', level: 0, octave: -1 },
-    noise: 0,
-    ring: { ratio: 3.41, amount: 0.9 },
-    fm: { type: 'sine', ratio: 7.1, index: 300, decay: 0.9 },
-    filter: { type: 'lowpass', hz: 5000, q: 1.5, env: 2000, keytrack: 0.4, envA: 0.001, envD: 0.5, envS: 0.2, envR: 0.4 },
-    amp: { a: 0.002, d: 1.4, s: 0, r: 0.9 },
-    vel: { amp: 0.8, filter: 0.5 },
-    send: { reverb: 0.55, delay: 0.25 },
-    macroCutoff: 0.8,
-    panSpread: 0.5,
-  },
-  {
-    id: 'eight-bit-hero',
-    name: '8-Bit Hero',
-    category: 'Experimental',
-    color: '#5ad2ff',
-    blurb: 'Chiptune square lead. Turn the arp on and go rescue someone.',
-    gain: 0.14,
-    oscs: [
-      { type: 'square', semi: 0, cents: 0, level: 0.8 },
-      { type: 'square', semi: 12, cents: 6, level: 0.25 },
-    ],
-    sub: { type: 'square', level: 0.2, octave: -1 },
-    noise: 0,
-    filter: { type: 'lowpass', hz: 7000, q: 0.8, env: 0, keytrack: 0.3, envA: 0.001, envD: 0.1, envS: 1, envR: 0.05 },
-    amp: { a: 0.001, d: 0.06, s: 0.85, r: 0.05 },
-    lfo: { type: 'square', rate: 11, target: 'pitch', amount: 0.14, delay: 0.12 },
-    vel: { amp: 0.5, filter: 0.2 },
-    send: { reverb: 0.14, delay: 0.28 },
-    macroCutoff: 0.9,
-    panSpread: 0.2,
-  },
-  {
-    id: 'underwater-piano',
-    name: 'Underwater Piano',
-    category: 'Experimental',
-    color: '#4aa8b8',
-    blurb: 'Muffled, drifting and very far away.',
-    gain: 0.18,
-    oscs: [
-      { type: 'triangle', semi: 0, cents: -6, level: 0.8 },
-      { type: 'sine', semi: 12, cents: 8, level: 0.3 },
-    ],
-    sub: { type: 'sine', level: 0.25, octave: -1 },
-    noise: 0,
-    filter: { type: 'lowpass', hz: 550, q: 4, env: 700, keytrack: 0.4, envA: 0.01, envD: 0.9, envS: 0.25, envR: 0.7 },
-    amp: { a: 0.01, d: 1.1, s: 0.15, r: 0.9 },
-    lfo: { type: 'sine', rate: 0.45, target: 'filter', amount: 0.35, delay: 0.3 },
-    vel: { amp: 0.7, filter: 0.5 },
-    send: { reverb: 0.75, delay: 0.3 },
-    chorus: 0.5,
-    macroCutoff: 0.5,
-    panSpread: 0.5,
-  },
-  {
-    id: 'wobble-pan',
-    name: 'Ping Pong Pad',
-    category: 'Experimental',
-    color: '#c78bff',
-    blurb: 'Swings across the stereo field. Use headphones.',
-    gain: 0.25,
-    oscs: [
-      { type: 'sawtooth', semi: 0, cents: -7, level: 0.55 },
-      { type: 'triangle', semi: 7, cents: 5, level: 0.4 },
-    ],
-    sub: { type: 'sine', level: 0.18, octave: -1 },
-    noise: 0.02,
-    filter: { type: 'lowpass', hz: 1300, q: 3, env: 1100, keytrack: 0.3, envA: 0.3, envD: 1, envS: 0.6, envR: 0.9 },
-    amp: { a: 0.25, d: 0.8, s: 0.75, r: 1.1 },
-    lfo: { type: 'sine', rate: 0.9, target: 'pan', amount: 0.85, delay: 0 },
-    unison: { voices: 2, spread: 11 },
-    vel: { amp: 0.45, filter: 0.4 },
-    send: { reverb: 0.6, delay: 0.25 },
-    chorus: 0.45,
-    macroCutoff: 0.68,
-    panSpread: 0,
-  },
-  {
-    id: 'laser-harp',
-    name: 'Laser Harp',
-    category: 'Lead',
-    color: '#ff6bd6',
-    blurb: 'Zapping pluck that dives into pitch. Very pew.',
-    gain: 0.17,
-    oscs: [
-      { type: 'sawtooth', semi: 0, cents: 0, level: 0.7 },
-      { type: 'square', semi: 12, cents: -8, level: 0.25 },
-    ],
-    sub: { type: 'sine', level: 0.2, octave: -1 },
-    noise: 0,
-    pitchEnv: { semis: 24, time: 0.07 },
-    filter: { type: 'lowpass', hz: 1200, q: 8, env: 7000, keytrack: 0.4, envA: 0.001, envD: 0.18, envS: 0.05, envR: 0.15 },
-    amp: { a: 0.001, d: 0.35, s: 0.1, r: 0.3 },
-    vel: { amp: 0.8, filter: 0.8 },
-    send: { reverb: 0.3, delay: 0.45 },
-    macroCutoff: 0.7,
-    panSpread: 0.45,
-  },
 ];
 
-/* The list as the picker shows it. Classical and acoustic first, because that
-   is what most playing starts from; then synths; the strange ones last. A
-   category here overrides whatever an individual patch says, so the order
-   lives in one place. */
+/* The list as the picker shows it: two or three sounds per style, each one
+   clearly unlike its neighbours. A category here overrides whatever an
+   individual patch says, so the order lives in one place. */
 const ORDER = [
-  ['Piano & Keys', ['grand-piano', 'felt-piano', 'honky-tonk', 'electric-piano', 'warm-keys', 'harpsichord', 'drawbar-organ', 'toy-piano']],
-  ['Mallets & Bells', ['marimba', 'vibraphone', 'xylophone', 'glockenspiel', 'celesta', 'tubular-bells', 'music-box', 'glass-bells']],
-  ['Plucked', ['concert-harp', 'nylon-guitar', 'pizzicato', 'koto', 'kalimba']],
-  ['Synth', ['supersaw', 'laser-harp', 'cosmic-pluck', 'rubber-bass', 'wobble-bass', 'velvet-pad', 'dream-choir']],
-  ['New Age', ['singing-bowl', 'bowed-vibes', 'steel-pan', 'cathedral-bell', 'ghost-theremin']],
-  ['Silly', ['rubber-duck', 'dial-up', 'slide-whistle', 'robot-burp', 'angry-bee']],
-  ['Experimental', ['backwards-piano', 'broken-tape', 'metal-mouth', 'eight-bit-hero', 'underwater-piano', 'wobble-pan']],
+  ['Classical & Easy', ['grand-piano', 'electric-piano', 'concert-harp']],
+  ['Classic Synth', ['supersaw', 'velvet-pad', 'rubber-bass']],
+  ['Funky', ['clavinet', 'drawbar-organ', 'funk-bass']],
+  ['Drum & Bass', ['reese-bass', 'wobble-bass', 'dream-choir']],
+  ['Techno', ['acid-bass', 'dub-stab', 'hoover']],
+  ['Fun & Strange', ['backwards-piano', 'singing-bowl', 'robot-burp']],
 ];
 
-const ALL = new Map([...SYNTH_PRESETS, ...ACOUSTIC_PRESETS].map((p) => [p.id, p]));
+/* Not in the picker, but Bash mode plays them: soft, can't-go-wrong sounds
+   for small hands. */
+const BASH_ONLY = ['glass-bells', 'marimba', 'music-box', 'toy-piano'];
+
+const ALL = new Map([...SYNTH_PRESETS, ...ACOUSTIC_PRESETS, ...GENRE_PRESETS].map((p) => [p.id, p]));
 
 export const PRESETS = ORDER.flatMap(([category, ids]) => ids.map((id) => {
   const preset = ALL.get(id);
@@ -489,17 +219,21 @@ export const PRESETS = ORDER.flatMap(([category, ids]) => ids.map((id) => {
   return preset;
 }));
 
-if (PRESETS.length !== ALL.size) {
-  const listed = new Set(PRESETS.map((p) => p.id));
-  const missing = [...ALL.keys()].filter((id) => !listed.has(id));
-  throw new Error(`presets: patches missing from ORDER: ${missing.join(', ')}`);
+{
+  const placed = new Set([...PRESETS.map((p) => p.id), ...BASH_ONLY]);
+  const stray = [...ALL.keys()].filter((id) => !placed.has(id));
+  if (stray.length) throw new Error(`presets: patches neither listed nor Bash-only: ${stray.join(', ')}`);
 }
 
-const BY_ID = new Map(PRESETS.map((p) => [p.id, p]));
+/** Every patch, including Bash mode's — so a saved or Bash choice still resolves. */
+const BY_ID = ALL;
 
 export function getPreset(id) {
   return BY_ID.get(id) || PRESETS[0];
 }
+
+/** Patches Bash mode may play that the picker doesn't show. */
+export const ALL_PRESETS = [...ALL.values()];
 
 export const PRESET_CATEGORIES = ORDER.map(([category]) => category);
 

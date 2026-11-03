@@ -100,28 +100,56 @@ export const KITS = [
 
   {
     id: 'studio',
-    name: 'Electro Kit',
-    blurb: 'Straight acoustic-ish kit plus a few tuned pads.',
+    name: 'Techno Kit',
+    blurb: 'Four-to-the-floor: punchy kick, offbeat hats, claps, and bass notes on the top row.',
     pads: [
-      { name: 'Kick', type: 'kick', tune: 52, decay: 0.4, color: C.kick },
-      { name: 'Snare', type: 'snare', decay: 0.19, color: C.snare },
+      { name: 'Kick', type: 'kick', tune: 50, decay: 0.45, color: C.kick },
+      { name: 'Kick long', type: 'kick', tune: 44, decay: 0.85, color: C.kick },
       { name: 'Clap', type: 'clap', color: C.snare },
       { name: 'Rim', type: 'rim', color: C.perc },
 
-      { name: 'Hat', type: 'hat', decay: 0.05, color: C.hat },
-      { name: 'Hat open', type: 'hat', decay: 0.32, color: C.hat },
+      { name: 'Hat', type: 'hat', decay: 0.04, choke: 'hat', color: C.hat },
+      { name: 'Hat open', type: 'hat', decay: 0.3, choke: 'hat', color: C.hat },
+      { name: 'Ride', type: 'cymbal', decay: 0.9, color: C.metal },
+      { name: 'Crash', type: 'cymbal', decay: 1.6, color: C.metal },
+
+      { name: 'Snare', type: 'snare', color: C.snare },
+      { name: 'Tom lo', type: 'tom', tune: 110, color: C.perc },
+      { name: 'Tom hi', type: 'tom', tune: 190, color: C.perc },
       { name: 'Shaker', type: 'shaker', color: C.hat },
-      { name: 'Crash', type: 'cymbal', decay: 1.4, color: C.metal },
 
-      { name: 'Tom lo', type: 'tom', tune: 120, color: C.perc },
-      { name: 'Tom mid', type: 'tom', tune: 175, color: C.perc },
-      { name: 'Tom hi', type: 'tom', tune: 240, color: C.perc },
-      { name: 'Cowbell', type: 'cowbell', color: C.metal },
+      { name: 'Bass C', type: 'bass', note: 36, decay: 0.35, color: C.deep },
+      { name: 'Bass D#', type: 'bass', note: 39, decay: 0.35, color: C.deep },
+      { name: 'Bass F', type: 'bass', note: 41, decay: 0.35, color: C.deep },
+      { name: 'Bass G', type: 'bass', note: 43, decay: 0.35, color: C.deep },
+    ],
+  },
 
-      { name: 'Block', type: 'woodblock', color: C.perc },
-      { name: 'Bass C', type: 'bass', note: 36, decay: 0.45, color: C.deep },
-      { name: 'Marimba', type: 'marimba', note: 72, color: C.tuned },
-      { name: 'Bell', type: 'bell', note: 84, decay: 1.6, color: C.tuned },
+  {
+    id: 'dnb',
+    name: 'Drum & Bass',
+    blurb: 'A tight breakbeat kit: cracking snare, ghost notes, ride, and sub-bass hits.',
+    pads: [
+      { name: 'Kick', type: 'akick', tune: 62, decay: 0.7, color: C.kick },
+      { name: 'Snare', type: 'asnare', tune: 245, wires: 0.4, decay: 0.8, color: C.snare },
+      // Ghost notes: the quiet snare in between that makes a break roll.
+      { name: 'Ghost snare', type: 'asnare', tune: 245, wires: 0.4, decay: 0.6, gain: 0.35, color: C.snare },
+      { name: 'Rimshot', type: 'asnare', tune: 255, rim: true, color: C.snare },
+
+      { name: 'Hat', type: 'ahat', decay: 0.04, choke: 'hat', color: C.hat },
+      { name: 'Hat open', type: 'ahat', decay: 0.5, choke: 'hat', color: C.hat },
+      { name: 'Ride', type: 'ride', decay: 2.2, color: C.metal },
+      { name: 'Crash', type: 'crash', decay: 1.8, color: C.metal },
+
+      { name: 'Tom hi', type: 'atom', tune: 230, color: C.perc },
+      { name: 'Tom lo', type: 'atom', tune: 140, color: C.perc },
+      { name: 'Shaker', type: 'shaker', color: C.hat },
+      { name: 'Tambourine', type: 'tambourine', color: C.hat },
+
+      { name: 'Sub E', type: 'bass', note: 28, wave: 'sine', decay: 0.9, color: C.deep },
+      { name: 'Sub G', type: 'bass', note: 31, wave: 'sine', decay: 0.9, color: C.deep },
+      { name: 'Sub A', type: 'bass', note: 33, wave: 'sine', decay: 0.9, color: C.deep },
+      { name: 'Sub C', type: 'bass', note: 36, wave: 'sine', decay: 0.9, color: C.deep },
     ],
   },
 
@@ -181,6 +209,8 @@ export const KITS = [
 
   {
     id: 'melodic',
+    // Bash mode's pads when they aren't drums. Not offered in the picker.
+    hidden: true,
     name: 'Melodic Pads',
     blurb: 'Sixteen tuned pads in a pentatonic scale. Nothing can clash.',
     pads: [

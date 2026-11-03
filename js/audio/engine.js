@@ -20,16 +20,19 @@ export function noiseBuffer(ctx) {
 }
 
 /**
- * Unity below KNEE, then a smooth bend towards 1. The curve covers inputs of
+ * Unity below KNEE, then a smooth bend towards CEILING. The curve covers inputs of
  * ±2 (a WaveShaper maps -1..1 onto its curve, so the input is halved first and
  * the curve stores the doubled-domain result): even a signal twice full scale
  * comes out under 1 rather than flat-topped.
  */
 const KNEE = 0.8;
+// Not 1: the 4x oversampling filter rings slightly at a sharp peak, and a
+// ceiling of exactly 1 measured 1.003 on the loudest passage.
+const CEILING = 0.98;
 export function safetyShape(x) {
   const a = Math.abs(x);
   if (a <= KNEE) return x;
-  const room = 1 - KNEE;
+  const room = CEILING - KNEE;
   return Math.sign(x) * (KNEE + room * Math.tanh((a - KNEE) / room));
 }
 
@@ -125,7 +128,7 @@ export class Engine {
        hard attack: it needs a few milliseconds to react, and Chrome adds its
        own make-up gain on top, so the first instant of a loud chord could leave
        it above full scale and be clipped flat by the device. This curve is
-       exact unity up to 0.8 and then bends smoothly towards 1, so nothing
+       exact unity up to 0.8 and then bends smoothly towards 0.98, so nothing
        ordinary is touched and nothing extraordinary can square off. */
     this.safetyIn = ctx.createGain();
     this.safetyIn.gain.value = 0.5;

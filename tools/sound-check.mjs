@@ -51,9 +51,9 @@ function startServer() {
 /* Instruments whose heard pitch isn't their lowest mode, so autocorrelation
    can't judge them: tubular bells are heard at half their fourth mode, and a
    bell's hum sits an octave under its strike note. */
-const INHARMONIC = new Set(['tubular-bells', 'cathedral-bell', 'glass-bells']);
+const INHARMONIC = new Set(['glass-bells']);
 // Two strings a deliberate 13 cents apart: there is no single right pitch.
-const DETUNED = new Set(['honky-tonk']);
+const DETUNED = new Set([]);
 
 // Synth patches deliberately sweep, wobble or detune; only acoustic engines,
 // whose whole claim is to be in tune, are held to a tuning tolerance.
@@ -74,7 +74,7 @@ async function main() {
   await page.goto(`http://127.0.0.1:${PORT}/`);
 
   const report = await page.evaluate(async ({ INHARMONIC, DETUNED, TOL, RTOL }) => {
-    const { PRESETS } = await import('/js/audio/presets.js');
+    const { ALL_PRESETS: PRESETS } = await import('/js/audio/presets.js');
     const { KITS } = await import('/js/audio/kits.js');
     const { createVoice } = await import('/js/audio/acoustic.js');
     const { triggerPad } = await import('/js/audio/drums.js');
@@ -279,7 +279,7 @@ async function main() {
     const { getPreset } = await import('/js/audio/presets.js');
     const { getKit } = await import('/js/audio/kits.js');
     const load = [];
-    for (const id of ['grand-piano', 'honky-tonk', 'marimba', 'concert-harp', 'supersaw', 'wobble-bass', 'drawbar-organ']) {
+    for (const id of ['grand-piano', 'clavinet', 'concert-harp', 'supersaw', 'reese-bass', 'acid-bass', 'dub-stab', 'hoover', 'wobble-bass']) {
       const seconds = 6;
       const e = new Engine();
       e._masterVolume = 1;   // the worst case: volume all the way up

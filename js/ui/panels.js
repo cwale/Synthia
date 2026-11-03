@@ -758,7 +758,6 @@ function buildSynthPicker(app, body, sheet) {
           sheet.refresh();
         },
       },
-        h('div.patchcard__cat', null, preset.category),
         h('div.patchcard__name', null, preset.name),
         h('div.patchcard__blurb', null, preset.blurb),
       ));
@@ -770,7 +769,7 @@ function buildSynthPicker(app, body, sheet) {
 
 function buildKitPicker(app, body, sheet) {
   const grid = h('div.patchgrid');
-  for (const kit of KITS) {
+  for (const kit of KITS.filter((k) => !k.hidden)) {
     grid.append(h('button.patchcard', {
       class: kit.id === settings.pads.kitId ? 'is-on' : '',
       style: { '--pc': kit.pads[0].color },
