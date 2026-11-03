@@ -1,13 +1,15 @@
+import { ACOUSTIC_PRESETS } from './acoustic-presets.js';
+
 /* Synth patches. `send` values seed the reverb/delay macros when a patch is
    loaded, the way a hardware preset recalls its effect levels. */
 
-export const PRESETS = [
+const SYNTH_PRESETS = [
   {
     id: 'warm-keys',
     name: 'Warm Keys',
     category: 'Keys',
     color: '#f0a860',
-    blurb: 'Rounded electric piano. The safe default.',
+    blurb: 'Soft synthesised keys. Warmer and simpler than the real electric piano.',
     gain: 0.19,
     oscs: [
       { type: 'sawtooth', semi: 0, cents: -4, level: 0.7 },
@@ -90,49 +92,6 @@ export const PRESETS = [
     panSpread: 0,
   },
   {
-    id: 'music-box',
-    name: 'Music Box',
-    category: 'Bells',
-    color: '#ffd166',
-    blurb: 'Plinky and sweet. A favourite with small hands.',
-    gain: 0.2,
-    oscs: [
-      { type: 'triangle', semi: 0, cents: 0, level: 0.9 },
-      { type: 'sine', semi: 12, cents: 3, level: 0.35 },
-      { type: 'sine', semi: 19, cents: 0, level: 0.12 },
-    ],
-    sub: { type: 'sine', level: 0, octave: -1 },
-    noise: 0,
-    filter: { type: 'lowpass', hz: 4200, q: 0.9, env: 1800, keytrack: 0.5, envA: 0.001, envD: 0.35, envS: 0.2, envR: 0.2 },
-    amp: { a: 0.001, d: 0.95, s: 0, r: 0.5 },
-    vel: { amp: 0.75, filter: 0.3 },
-    chorus: 0.2,
-    send: { reverb: 0.4, delay: 0.12 },
-    macroCutoff: 0.82,
-    panSpread: 0.25,
-  },
-  {
-    id: 'marimba',
-    name: 'Marimba',
-    category: 'Percussive',
-    color: '#e8a05c',
-    blurb: 'Woody mallet tone. Percussive and forgiving.',
-    gain: 0.24,
-    oscs: [
-      { type: 'sine', semi: 0, cents: 0, level: 1 },
-      { type: 'sine', semi: 24, cents: 4, level: 0.22 },
-      { type: 'triangle', semi: 12, cents: 0, level: 0.14 },
-    ],
-    sub: { type: 'sine', level: 0, octave: -1 },
-    noise: 0,
-    filter: { type: 'lowpass', hz: 3200, q: 1, env: 1200, keytrack: 0.6, envA: 0.001, envD: 0.18, envS: 0.1, envR: 0.15 },
-    amp: { a: 0.002, d: 0.55, s: 0, r: 0.3 },
-    vel: { amp: 0.8, filter: 0.5 },
-    send: { reverb: 0.28, delay: 0.06 },
-    macroCutoff: 0.78,
-    panSpread: 0.35,
-  },
-  {
     id: 'supersaw',
     name: 'Supersaw Lead',
     category: 'Lead',
@@ -204,27 +163,6 @@ export const PRESETS = [
     panSpread: 0.6,
   },
   {
-    id: 'toy-piano',
-    name: 'Toy Piano',
-    category: 'Percussive',
-    color: '#ff8fb1',
-    blurb: 'Tin-can charm, short and cheerful.',
-    gain: 0.2,
-    oscs: [
-      { type: 'square', semi: 0, cents: 0, level: 0.45 },
-      { type: 'triangle', semi: 12, cents: 8, level: 0.6 },
-      { type: 'sine', semi: 28, cents: 0, level: 0.1 },
-    ],
-    sub: { type: 'sine', level: 0, octave: -1 },
-    noise: 0.02,
-    filter: { type: 'bandpass', hz: 1900, q: 1.4, env: 2600, keytrack: 0.7, envA: 0.001, envD: 0.12, envS: 0.15, envR: 0.12 },
-    amp: { a: 0.001, d: 0.4, s: 0, r: 0.22 },
-    vel: { amp: 0.85, filter: 0.5 },
-    send: { reverb: 0.3, delay: 0.1 },
-    macroCutoff: 0.8,
-    panSpread: 0.2,
-  },
-  {
     id: 'wobble-bass',
     name: 'Wobble Bass',
     category: 'Bass',
@@ -277,7 +215,7 @@ export const PRESETS = [
     category: 'Silly',
     color: '#ffe14d',
     blurb: 'Squeaky, indignant, faintly rude.',
-    gain: 0.16,
+    gain: 1.8,
     oscs: [
       { type: 'square', semi: 12, cents: 0, level: 0.7 },
       { type: 'sawtooth', semi: 19, cents: 12, level: 0.3 },
@@ -299,7 +237,7 @@ export const PRESETS = [
     category: 'Silly',
     color: '#8be04e',
     blurb: 'Screeching FM nonsense. Sounds like 1998 connecting.',
-    gain: 0.1,
+    gain: 1.1,
     oscs: [{ type: 'square', semi: 0, cents: 0, level: 1 }],
     sub: { type: 'sine', level: 0, octave: -1 },
     noise: 0.06,
@@ -361,7 +299,7 @@ export const PRESETS = [
     category: 'Silly',
     color: '#ffcc33',
     blurb: 'Buzzing menace in a jar. Hold a chord at your peril.',
-    gain: 0.13,
+    gain: 1.2,
     oscs: [
       { type: 'sawtooth', semi: 0, cents: -18, level: 0.6 },
       { type: 'sawtooth', semi: 0, cents: 21, level: 0.6 },
@@ -488,7 +426,7 @@ export const PRESETS = [
     category: 'Experimental',
     color: '#c78bff',
     blurb: 'Swings across the stereo field. Use headphones.',
-    gain: 0.12,
+    gain: 0.25,
     oscs: [
       { type: 'sawtooth', semi: 0, cents: -7, level: 0.55 },
       { type: 'triangle', semi: 7, cents: 5, level: 0.4 },
@@ -528,13 +466,42 @@ export const PRESETS = [
   },
 ];
 
+/* The list as the picker shows it. Classical and acoustic first, because that
+   is what most playing starts from; then synths; the strange ones last. A
+   category here overrides whatever an individual patch says, so the order
+   lives in one place. */
+const ORDER = [
+  ['Piano & Keys', ['grand-piano', 'felt-piano', 'honky-tonk', 'electric-piano', 'warm-keys', 'harpsichord', 'drawbar-organ', 'toy-piano']],
+  ['Mallets & Bells', ['marimba', 'vibraphone', 'xylophone', 'glockenspiel', 'celesta', 'tubular-bells', 'music-box', 'glass-bells']],
+  ['Plucked', ['concert-harp', 'nylon-guitar', 'pizzicato', 'koto', 'kalimba']],
+  ['Synth', ['supersaw', 'laser-harp', 'cosmic-pluck', 'rubber-bass', 'wobble-bass', 'velvet-pad', 'dream-choir']],
+  ['New Age', ['singing-bowl', 'bowed-vibes', 'steel-pan', 'cathedral-bell', 'ghost-theremin']],
+  ['Silly', ['rubber-duck', 'dial-up', 'slide-whistle', 'robot-burp', 'angry-bee']],
+  ['Experimental', ['backwards-piano', 'broken-tape', 'metal-mouth', 'eight-bit-hero', 'underwater-piano', 'wobble-pan']],
+];
+
+const ALL = new Map([...SYNTH_PRESETS, ...ACOUSTIC_PRESETS].map((p) => [p.id, p]));
+
+export const PRESETS = ORDER.flatMap(([category, ids]) => ids.map((id) => {
+  const preset = ALL.get(id);
+  if (!preset) throw new Error(`presets: ORDER names unknown patch "${id}"`);
+  preset.category = category;
+  return preset;
+}));
+
+if (PRESETS.length !== ALL.size) {
+  const listed = new Set(PRESETS.map((p) => p.id));
+  const missing = [...ALL.keys()].filter((id) => !listed.has(id));
+  throw new Error(`presets: patches missing from ORDER: ${missing.join(', ')}`);
+}
+
 const BY_ID = new Map(PRESETS.map((p) => [p.id, p]));
 
 export function getPreset(id) {
   return BY_ID.get(id) || PRESETS[0];
 }
 
-export const PRESET_CATEGORIES = [...new Set(PRESETS.map((p) => p.category))];
+export const PRESET_CATEGORIES = ORDER.map(([category]) => category);
 
 /** Patches offered in Bash mode, in the order they appear on the big buttons. */
 export const BASH_SOUNDS = [

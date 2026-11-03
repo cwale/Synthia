@@ -4,7 +4,13 @@
    and must not care whether there is signal, so freshness comes second — a new
    version is picked up on the next launch. */
 
-const VERSION = 'synthia-b66e0ec';
+const VERSION = 'synthia-eb81d09';
+
+/* Recordings get their own cache that survives deploys. The app cache above is
+   replaced wholesale on every release, which is right for code and wrong for
+   7 MB of piano that never changes. Bump this only if the files themselves are
+   re-encoded under the same names. */
+const SAMPLE_CACHE = 'synthia-samples-v1';
 
 const SHELL = [
   './',
@@ -23,6 +29,10 @@ const SHELL = [
   './js/audio/presets.js',
   './js/audio/kits.js',
   './js/audio/macros.js',
+  './js/audio/acoustic.js',
+  './js/audio/acoustic-presets.js',
+  './js/audio/samples.js',
+  './js/audio/percussion.js',
   './js/audio/clock.js',
   './js/audio/groove.js',
   './js/audio/recorder.js',
@@ -64,7 +74,7 @@ self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys()
       .then((keys) => Promise.all(
-        keys.filter((k) => k !== VERSION).map((k) => caches.delete(k)),
+        keys.filter((k) => k !== VERSION && k !== SAMPLE_CACHE).map((k) => caches.delete(k)),
       ))
       .then(() => self.clients.claim()),
   );
@@ -82,6 +92,18 @@ self.addEventListener('fetch', (event) => {
      network untouched; if the network is down the app treats a failed check as
      "no newer build", which is the right answer offline. */
   if (url.pathname.endsWith('/version.json')) return;
+
+  // Recordings: cache-first, and never refetched once held — they don't change.
+  if (url.pathname.includes('/samples/')) {
+    event.respondWith(
+      caches.open(SAMPLE_CACHE).then((cache) => cache.match(request).then((hit) => hit
+        || fetch(request).then((response) => {
+          if (response && response.ok) cache.put(request, response.clone());
+          return response;
+        }))),
+    );
+    return;
+  }
 
   event.respondWith(
     caches.match(request, { ignoreSearch: true }).then((cached) => {

@@ -8,15 +8,58 @@ your phone. Play the keyboard, hear it out of the phone speaker. Built for an
 
 Two things it does well:
 
-- **Play mode** — twelve synth patches, four pad kits, arpeggiator, backing
-  beats, macro knobs, and a recorder for keeping the good bits.
+- **Play mode** — 44 sounds from a recorded grand piano through modelled
+  mallets, harp and harpsichord to the downright silly, seven pad kits
+  including an acoustic drum kit and orchestral percussion, arpeggiator,
+  backing beats, macro knobs, and a recorder for keeping the good bits.
 - **Bash mode** — one tap hands the whole screen to a toddler. Every note is
   bent onto a scale so nothing sounds wrong, the volume is capped, held notes
   release themselves, and getting out needs a three-second hold.
 
-No samples, no dependencies, no build step. Every sound is generated live with
-the Web Audio API, so the whole thing is a few hundred kilobytes and works
-offline once installed.
+No dependencies and no build step. One sound is recorded, the grand piano;
+everything else is generated live with the Web Audio API. The app itself is a
+few hundred kilobytes and works offline once installed; the piano is 7 MB more,
+fetched the first time it plays and kept from then on.
+
+## How the sounds are made
+
+| Family | How | Why |
+|---|---|---|
+| Grand, Felt and Honky-Tonk piano, Backwards Piano | **Recorded** Steinway B, 21 notes at three dynamics | A piano is the one instrument a practical model can't make convincing |
+| Marimba, vibraphone, xylophone, glockenspiel, celesta, tubular bells, music box, kalimba, steel pan, bells, singing bowl, electric piano | **Modal synthesis**: each instrument's measured resonant modes, each a sine with its own decay | Struck bars and bells really are a handful of decaying modes, so this is the instrument's physics rather than an imitation |
+| Harp, harpsichord, nylon guitar, pizzicato, koto | **Karplus–Strong** string modelling with fractional-delay tuning and body resonances | A plucked string is a delay line losing energy; tuned this way it stays within a few cents |
+| Acoustic kit, orchestral and hand percussion | **Modelled membranes, bars and cymbals** | Drumheads ring at known mode ratios; cymbals are filtered noise plus inharmonic partials |
+| Synth, Silly and Experimental patches | Subtractive and FM synthesis | They were never meant to sound like anything real |
+
+Every acoustic sound treats velocity as more than volume: a harder hit brings
+up the upper modes, the beater click, the snare wires, exactly as on the real
+instrument. Real-instrument behaviour is modelled where it matters to playing:
+the top piano octaves have no dampers and ring on as a real piano's do; a
+marimba bar keeps ringing after you release the key; closing the hi-hat chokes
+an open one.
+
+`node tools/sound-check.mjs` renders every patch and pad and measures it —
+tuning, clipping at full velocity, silence, balance between patches, and
+whether a harder hit is actually brighter. CI runs it on every push. Most
+modelled instruments measure within 2 cents of true pitch and none worse than
+8; the piano reads up to 17 cents flat in the bass, which is the stretch tuning
+a concert piano is given, not an error.
+
+### The piano recordings
+
+The Steinway B comes from the [Versilian Community Sample Library](https://github.com/sgossner/VCSL)
+by Versilian Studios, released under CC0 — public domain, no conditions. Credit
+is given here because it's deserved, not because it's required.
+
+The set is every major third (C, E and G♯ in each octave, so no key is more
+than two semitones from a recording) at the three dynamics it was recorded at,
+trimmed and encoded to stereo VBR MP3 at a quality that's transparent on
+in-ear monitors. `tools/make-piano-samples.sh` rebuilds it from the library;
+it can also produce a mono set half the size, which is indistinguishable on a
+phone or Bluetooth speaker.
+
+The recordings sit in their own service-worker cache, separate from the app's,
+so updating Synthia doesn't download the piano again.
 
 ## Getting it on your phone
 
@@ -233,6 +276,10 @@ js/util.js            maths, music theory, platform detection
 js/audio/
   engine.js           AudioContext, master bus, channel strips, latency
   voice.js            one synth voice (subtractive + FM)
+  acoustic.js         recorded, modal and string voices
+  samples.js          loading and choosing piano recordings
+  percussion.js       modelled acoustic drums and percussion
+  acoustic-presets.js the acoustic instruments' numbers
   polysynth.js        voice allocation, sustain, bend, arpeggiator
   drums.js            synthesised percussion and one-shots
   fx.js               reverb, ping-pong delay, chorus, drive
@@ -246,7 +293,10 @@ js/midi/
   blemidi.js          Web Bluetooth BLE-MIDI transport and packet codec
   native.js           bridge for a native shell
 js/ui/                keyboard, pads, knobs, sheets, visualiser, Bash mode
+samples/piano/        the recorded grand piano
 tools/make-icons.mjs  generates the PWA icons (node tools/make-icons.mjs)
+tools/sound-check.mjs measures every sound (tuning, clipping, balance)
+tools/make-piano-samples.sh  rebuilds samples/piano from VCSL
 docs/FEASIBILITY.md   platform research and the native-vs-web trade-off
 docs/IOS.md           building the iOS wrapper
 ```

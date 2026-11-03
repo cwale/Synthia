@@ -25,6 +25,7 @@ const MIME = {
   '.webmanifest': 'application/manifest+json; charset=utf-8',
   '.png': 'image/png',
   '.svg': 'image/svg+xml',
+  '.mp3': 'audio/mpeg',
 };
 
 function startServer() {
@@ -685,6 +686,66 @@ await check('Learn maps pads split across the key channel and a vel-0 channel', 
   assert(res.pads.slice(0, 4).every(([, v]) => v === 100), `vel-0 pads play at the set level: ${JSON.stringify(res.pads)}`);
   eq(res.keys, [48], 'a key on channel 1 still plays the synth');
   await page.click('#panic-btn');
+});
+
+// The piano is the one recorded instrument. Until its files arrive the keys
+// must still play something, and once they have, the recordings must be what
+// plays — not the stand-in left behind.
+await check('grand piano plays a stand-in, then its recordings', async () => {
+  const res = await page.evaluate(async () => {
+    const samples = await import('./js/audio/samples.js');
+    const { createVoice, SampledVoice } = await import('./js/audio/acoustic.js');
+    const { SynthVoice } = await import('./js/audio/voice.js');
+    const { getPreset } = await import('./js/audio/presets.js');
+    const { engine } = await import('./js/audio/engine.js');
+    const patch = getPreset('grand-piano');
+    samples.resetBanks();
+    const before = createVoice(engine.ctx, engine.ctx.destination, patch, () => {});
+    const t0 = performance.now();
+    await samples.loadBank(engine.ctx, 'grand');
+    const ms = Math.round(performance.now() - t0);
+    const after = createVoice(engine.ctx, engine.ctx.destination, patch, () => {});
+    const hit = samples.pickSample('grand', 61, 0.9);
+    return {
+      before: before instanceof SynthVoice,
+      after: after instanceof SampledVoice,
+      ms,
+      count: samples.BANKS.grand.notes.length * samples.BANKS.grand.layers.length,
+      root: hit?.root, onset: hit?.offset, seconds: hit?.buffer.duration,
+    };
+  });
+  console.log('        ', JSON.stringify(res));
+  assert(res.before, 'before loading, the piano should fall back to its synth stand-in');
+  assert(res.after, 'after loading, the piano should play its recordings');
+  eq(res.count, 63, 'expected 21 notes at three dynamics');
+  eq(res.root, 60, 'C#4 should be played from the nearest recording, C4');
+  assert(res.onset >= 0 && res.onset < 0.05, `leading silence should be trimmed, onset ${res.onset}`);
+});
+
+// On a real kit the closed hat silences the open hat ringing on the same
+// cymbals. Without choke groups they pile up and the groove turns to mush.
+await check('closing the hi-hat chokes the open hat', async () => {
+  const res = await page.evaluate(async () => {
+    const { triggerPad } = await import('./js/audio/drums.js');
+    const { getKit } = await import('./js/audio/kits.js');
+    const kit = getKit('acoustic');
+    const open = kit.pads.find((p) => p.name === 'Hat open');
+    const closed = kit.pads.find((p) => p.name === 'Hat');
+    const tail = async (withClose) => {
+      const ctx = new OfflineAudioContext(1, 44100, 44100);
+      triggerPad(ctx, ctx.destination, open, 1, 0);
+      if (withClose) triggerPad(ctx, ctx.destination, closed, 1, 0.2);
+      const buf = await ctx.startRendering();
+      const d = buf.getChannelData(0);
+      let e = 0;
+      for (let i = Math.floor(0.35 * 44100); i < Math.floor(0.6 * 44100); i++) e += d[i] * d[i];
+      return e;
+    };
+    return { ringing: await tail(false), choked: await tail(true) };
+  });
+  console.log('        ', JSON.stringify(res));
+  assert(res.ringing > 1e-4, 'an open hat on its own should still be ringing at 0.35 s');
+  assert(res.choked < res.ringing * 0.02, `the closed hat should cut it off: ${res.choked} vs ${res.ringing}`);
 });
 
 await check('version label renders on the splash', async () => {

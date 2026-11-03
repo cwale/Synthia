@@ -36,10 +36,10 @@ export const defaults = {
 
   scale: { lock: false, root: 0, name: 'majorPentatonic', mode: 'snap' },
 
-  synth: { presetId: 'warm-keys' },
+  synth: { presetId: 'grand-piano' },
 
   pads: {
-    kitId: 'studio',
+    kitId: 'acoustic',
     layout: 'mpc',              // mpc = pad 1 bottom-left
     autoAdopt: true,
     rescueZeroVelocity: true,   // treat note-on vel 0 on the pad channel as a hit
@@ -48,7 +48,7 @@ export const defaults = {
 
   macros: defaultMacros(),
 
-  master: { volume: 0.85, limiter: true, polyphony: 12 },
+  master: { volume: 0.85, limiter: true, polyphony: 16 },   // 16 lets a pedalled piano ring
 
   groove: { on: false, patternId: 'boombap', tempo: 96, level: 0.7 },
 
