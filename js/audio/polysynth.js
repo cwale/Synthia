@@ -6,7 +6,7 @@
    it pressed). */
 
 import { clamp } from '../util.js';
-import { SynthVoice } from './voice.js';
+import { createVoice } from './acoustic.js';
 import { defaultMacros } from './macros.js';
 
 const RATE_STEPS = { '1/4': 4, '1/8': 2, '1/8t': 1.5, '1/16': 1 };
@@ -100,7 +100,7 @@ export class PolySynth {
       }
     }
 
-    const voice = new SynthVoice(this.ctx, this.dest, this.patch, (v) => {
+    const voice = createVoice(this.ctx, this.dest, this.patch, (v) => {
       if (this._voices.get(key) === v) this._forget(key);
     });
 

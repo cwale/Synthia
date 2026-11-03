@@ -1,11 +1,13 @@
 /* Synthesised percussion and one-shot pad voices.
 
    Everything here is generated from oscillators and filtered noise — no sample
-   files. That keeps the whole app a couple of hundred kilobytes, works offline
-   from the first load, and means no licensing questions about drum samples. */
+   files — so every kit works offline from the first load. The electronic and
+   playroom voices live here; the modelled acoustic kit, orchestra and hand
+   percussion are in percussion.js and are merged in below. */
 
 import { clamp, noteToFreq } from '../util.js';
 import { noiseBuffer } from './engine.js';
+import { PERCUSSION } from './percussion.js';
 
 const activeShots = new Set();
 
@@ -41,6 +43,10 @@ class OneShot {
   /** Percussive gain envelope: instant-ish attack then exponential-ish decay. */
   env(target, time, peak, decay, attack = 0.001) {
     const g = target.gain;
+    // A gain sits at 1 until its first scheduled event. For a hit that starts
+    // later than the shot itself — a tambourine's third jingle, a guiro's
+    // tenth ridge — that meant full volume until it was due, then silence.
+    g.value = 0;
     g.setValueAtTime(0, time);
     g.linearRampToValueAtTime(peak, time + attack);
     g.exponentialRampToValueAtTime(Math.max(0.0001, peak * 0.001), time + attack + decay);
@@ -419,10 +425,16 @@ const VOICES = {
   },
 };
 
+Object.assign(VOICES, PERCUSSION);
+
 /**
  * Fire a pad. `def` is a pad definition from a kit.
  * @returns {number} approximate voice length in seconds, for UI animation.
  */
+/* Pads in the same choke group cut each other off, the way closing a hi-hat
+   silences the open hat still ringing on the same pair of cymbals. */
+const chokes = new Map();
+
 export function triggerPad(ctx, dest, def, velocity = 1, time = null) {
   const voice = VOICES[def.type];
   if (!voice) {
@@ -432,6 +444,10 @@ export function triggerPad(ctx, dest, def, velocity = 1, time = null) {
   const t = time ?? ctx.currentTime;
   const shot = new OneShot(ctx, dest);
   shot.out.gain.value = clamp(def.gain ?? 1, 0, 2);
+  if (def.choke) {
+    chokes.get(def.choke)?.kill(t);
+    chokes.set(def.choke, shot);
+  }
   const length = voice(shot, def, clamp(velocity, 0.02, 1), t) || 0.5;
   shot.commit(t, t + length + 0.05);
   return length;

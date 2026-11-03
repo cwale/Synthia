@@ -18,8 +18,89 @@ const C = {
 
 export const KITS = [
   {
+    id: 'acoustic',
+    name: 'Acoustic Kit',
+    blurb: 'A modelled drum kit. Hit harder for more crack, click and sizzle.',
+    pads: [
+      { name: 'Kick', type: 'akick', tune: 56, color: C.kick },
+      { name: 'Snare', type: 'asnare', tune: 190, color: C.snare },
+      { name: 'Rimshot', type: 'asnare', tune: 200, rim: true, color: C.snare },
+      { name: 'Side stick', type: 'sidestick', color: C.perc },
+
+      { name: 'Hat', type: 'ahat', decay: 0.05, choke: 'hat', color: C.hat },
+      { name: 'Hat pedal', type: 'ahat', decay: 0.03, pedal: true, choke: 'hat', color: C.hat },
+      { name: 'Hat open', type: 'ahat', decay: 0.75, choke: 'hat', color: C.hat },
+      { name: 'Crash', type: 'crash', decay: 2.2, color: C.metal },
+
+      { name: 'Tom hi', type: 'atom', tune: 205, color: C.perc },
+      { name: 'Tom mid', type: 'atom', tune: 160, color: C.perc },
+      { name: 'Tom lo', type: 'atom', tune: 122, decay: 1.15, color: C.perc },
+      { name: 'Floor tom', type: 'atom', tune: 92, decay: 1.3, color: C.perc },
+
+      { name: 'Ride', type: 'ride', decay: 2.6, color: C.metal },
+      { name: 'Ride bell', type: 'ride', bell: true, color: C.metal },
+      { name: 'Tambourine', type: 'tambourine', color: C.hat },
+      { name: 'Cowbell', type: 'cowbell', color: C.metal },
+    ],
+  },
+
+  {
+    id: 'orchestra',
+    name: 'Orchestral Percussion',
+    blurb: 'Timpani, gran cassa, cymbals and the tuned percussion section.',
+    pads: [
+      { name: 'Timpani D', type: 'timpani', note: 38, color: C.deep },
+      { name: 'Timpani A', type: 'timpani', note: 45, color: C.deep },
+      { name: 'Bass drum', type: 'bassdrum', color: C.kick },
+      { name: 'Snare', type: 'asnare', tune: 230, wires: 0.42, decay: 1.2, color: C.snare },
+
+      { name: 'Clash cymbals', type: 'crash', decay: 3.2, pair: true, size: 0.9, color: C.metal },
+      { name: 'Susp. cymbal', type: 'crash', decay: 3.4, swell: 0.35, size: 1.1, color: C.metal },
+      { name: 'Triangle', type: 'triangle', color: C.hat },
+      { name: 'Tambourine', type: 'tambourine', skin: true, color: C.hat },
+
+      { name: 'Glockenspiel', type: 'mallet', modes: 'glockenspiel', note: 96, click: 6000, color: C.tuned },
+      { name: 'Xylophone', type: 'mallet', modes: 'xylophone', note: 84, hardness: 0.75, color: C.tuned },
+      { name: 'Tubular bell', type: 'mallet', modes: 'tubular', note: 72, click: 3000, gain: 0.6, color: C.tuned },
+      { name: 'Tam-tam', type: 'gong', color: C.deep },
+
+      { name: 'Woodblock', type: 'woodblock', color: C.perc },
+      { name: 'Claves', type: 'claves', color: C.perc },
+      { name: 'Sleigh bells', type: 'sleighbells', color: C.hat },
+      { name: 'Castanets', type: 'castanets', color: C.perc },
+    ],
+  },
+
+  {
+    id: 'hand',
+    name: 'Hand Percussion',
+    blurb: 'Congas, bongos, djembe and cajon, plus the shakers and scrapers.',
+    pads: [
+      { name: 'Conga open', type: 'hand', tune: 196, stroke: 'open', color: C.perc },
+      { name: 'Conga slap', type: 'hand', tune: 196, stroke: 'slap', crack: 2300, color: C.snare },
+      { name: 'Conga mute', type: 'hand', tune: 196, stroke: 'mute', color: C.perc },
+      { name: 'Tumba', type: 'hand', tune: 148, stroke: 'open', decay: 1.2, color: C.kick },
+
+      { name: 'Bongo hi', type: 'hand', tune: 410, stroke: 'open', decay: 0.6, color: C.perc },
+      { name: 'Bongo lo', type: 'hand', tune: 300, stroke: 'open', decay: 0.7, color: C.perc },
+      { name: 'Djembe bass', type: 'hand', tune: 78, stroke: 'bass', color: C.kick },
+      { name: 'Djembe slap', type: 'hand', tune: 330, stroke: 'slap', crack: 2900, color: C.snare },
+
+      { name: 'Cajon bass', type: 'hand', tune: 82, stroke: 'bass', wires: 0.08, color: C.kick },
+      { name: 'Cajon slap', type: 'hand', tune: 260, stroke: 'slap', crack: 1600, wires: 0.3, color: C.snare },
+      { name: 'Agogo hi', type: 'agogo', tune: 920, color: C.metal },
+      { name: 'Agogo lo', type: 'agogo', tune: 650, color: C.metal },
+
+      { name: 'Shaker', type: 'shaker', color: C.hat },
+      { name: 'Cabasa', type: 'cabasa', color: C.hat },
+      { name: 'Guiro', type: 'guiro', color: C.perc },
+      { name: 'Claves', type: 'claves', tune: 2300, color: C.perc },
+    ],
+  },
+
+  {
     id: 'studio',
-    name: 'Studio Kit',
+    name: 'Electro Kit',
     blurb: 'Straight acoustic-ish kit plus a few tuned pads.',
     pads: [
       { name: 'Kick', type: 'kick', tune: 52, decay: 0.4, color: C.kick },
@@ -49,7 +130,7 @@ export const KITS = [
     name: 'Eight-Oh-Eight',
     blurb: 'Long booming kick, snappy claps, metallic everything.',
     pads: [
-      { name: 'Boom', type: 'kick', tune: 41, decay: 0.95, gain: 1.1, color: C.kick },
+      { name: 'Boom', type: 'kick', tune: 41, decay: 0.95, gain: 0.9, color: C.kick },
       { name: 'Kick', type: 'kick', tune: 58, decay: 0.28, color: C.kick },
       { name: 'Snare', type: 'snare', tune: 2200, decay: 0.14, color: C.snare },
       { name: 'Clap', type: 'clap', decay: 0.2, color: C.snare },
@@ -91,7 +172,7 @@ export const KITS = [
       { name: 'Marimba', type: 'marimba', note: 67, color: C.tuned },
       { name: 'Block', type: 'woodblock', color: C.perc },
 
-      { name: 'Big drum', type: 'kick', tune: 48, decay: 0.6, color: C.kick },
+      { name: 'Big drum', type: 'kick', tune: 48, decay: 0.6, gain: 0.85, color: C.kick },
       { name: 'Snare', type: 'snare', color: C.snare },
       { name: 'Clap', type: 'clap', color: C.snare },
       { name: 'Cymbal', type: 'cymbal', decay: 1.6, color: C.metal },

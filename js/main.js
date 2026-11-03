@@ -11,6 +11,7 @@ import { Groove, getPattern } from './audio/groove.js';
 import { TakeRecorder } from './audio/recorder.js';
 import { triggerPad, panicDrums } from './audio/drums.js';
 import { getPreset, PRESETS } from './audio/presets.js';
+import { BANKS, bankReady, loadBank } from './audio/samples.js';
 import { getKit } from './audio/kits.js';
 import { ON_SCREEN_MACROS, MACRO_BY_KEY } from './audio/macros.js';
 import { VERSION, versionLabel, latestDeployed } from './version.js';
@@ -351,6 +352,7 @@ class App {
     this.patch = preset;
     settings.synth.presetId = preset.id;
     this.synth.setPatch(preset);
+    if (preset.engine === 'sampler') this.loadSamplesFor(preset, { silent });
 
     // A patch recalls its own effect levels, like a hardware preset would.
     settings.macros.cutoff = preset.macroCutoff ?? 0.75;
@@ -362,6 +364,28 @@ class App {
     qs('#patch-label').textContent = preset.name;
     qs('#patch-swatch').style.background = preset.color;
     qs('#patch-swatch').style.color = preset.color;
+  }
+
+  /**
+   * Fetch a recorded instrument the first time it's chosen. Until it arrives
+   * the keys play a synthesised stand-in, so nothing goes silent; the toast is
+   * there so a change in sound halfway through a phrase isn't a mystery.
+   */
+  loadSamplesFor(preset, { silent = false } = {}) {
+    const id = preset.sampler.bank;
+    if (bankReady(id) || !engine.ctx) return;
+    const name = BANKS[id].name;
+    if (!silent) toast(`Loading the ${name.toLowerCase()}…`, { ms: 2500 });
+    loadBank(engine.ctx, id)
+      .then(() => {
+        if (this.patch?.engine === 'sampler' && this.patch.sampler.bank === id) {
+          toast(`${name} ready`, { kind: 'good' });
+        }
+      })
+      .catch((err) => {
+        console.warn('[samples]', err);
+        toast(`Couldn't load the ${name.toLowerCase()} — playing a synth piano for now`, { ms: 5000 });
+      });
   }
 
   setKit(id) {

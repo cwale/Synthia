@@ -64,6 +64,14 @@ jobs:
       - name: Build stamp matches the content
         run: node tools/stamp.mjs --check
 
+      # Recordings download once and are cached, but they still cost the first
+      # load. A budget stops the piano quietly growing.
+      - name: Recordings stay within their size budget
+        run: |
+          size=$(du -sk samples | cut -f1)
+          echo "samples/: ${size} KB"
+          [ "$size" -le 10240 ] || (echo 'samples/ is over its 10 MB budget' && exit 1)
+
   smoke:
     name: Browser smoke test
     runs-on: ubuntu-latest
@@ -80,3 +88,8 @@ jobs:
 
       - name: Run smoke test
         run: node tools/smoke-test.mjs
+
+      # Renders every patch and pad and measures it: tuning, clipping, silence,
+      # balance between patches, and whether a harder hit is brighter.
+      - name: Measure every sound
+        run: node tools/sound-check.mjs
