@@ -4,7 +4,7 @@
    and must not care whether there is signal, so freshness comes second — a new
    version is picked up on the next launch. */
 
-const VERSION = 'synthia-ff5cdf9';
+const VERSION = 'synthia-db3d39b';
 
 /* Recordings get their own cache that survives deploys. The app cache above is
    replaced wholesale on every release, which is right for code and wrong for
@@ -31,6 +31,7 @@ const SHELL = [
   './js/audio/macros.js',
   './js/audio/acoustic.js',
   './js/audio/acoustic-presets.js',
+  './js/audio/genre-presets.js',
   './js/audio/samples.js',
   './js/audio/percussion.js',
   './js/audio/clock.js',

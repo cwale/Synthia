@@ -8,10 +8,11 @@ your phone. Play the keyboard, hear it out of the phone speaker. Built for an
 
 Two things it does well:
 
-- **Play mode** — 44 sounds from a recorded grand piano through modelled
-  mallets, harp and harpsichord to the downright silly, seven pad kits
-  including an acoustic drum kit and orchestral percussion, arpeggiator,
-  backing beats, macro knobs, and a recorder for keeping the good bits.
+- **Play mode** — 18 sounds in six styles, three each: classical and easy
+  listening, classic synth, funky, drum & bass, techno, and fun and strange.
+  Seven pad kits to match: acoustic, orchestral, hand percussion, 808, techno,
+  drum & bass and playroom. Arpeggiator, backing beats, macro knobs, and a
+  recorder for keeping the good bits.
 - **Bash mode** — one tap hands the whole screen to a toddler. Every note is
   bent onto a scale so nothing sounds wrong, the volume is capped, held notes
   release themselves, and getting out needs a three-second hold.
@@ -23,26 +24,38 @@ fetched the first time it plays and kept from then on.
 
 ## How the sounds are made
 
-| Family | How | Why |
+| Style | Sounds |
+|---|---|
+| Classical & Easy | Grand Piano, Electric Piano, Concert Harp |
+| Classic Synth | Supersaw Lead, Velvet Pad, Rubber Bass |
+| Funky | Clavinet, Drawbar Organ, Funk Bass |
+| Drum & Bass | Reese Bass, Wobble Bass, Dream Choir |
+| Techno | Acid Bass, Dub Chord Stab, Hoover |
+| Fun & Strange | Backwards Piano, Singing Bowl, Robot Burp |
+
+Bash mode keeps its own gentle set (bells, marimba, music box, toy piano and
+two of the above), which the picker doesn't show.
+
+| How | Used for | Why |
 |---|---|---|
-| Grand, Felt and Honky-Tonk piano, Backwards Piano | **Recorded** Steinway B, 21 notes at three dynamics | A piano is the one instrument a practical model can't make convincing |
-| Marimba, vibraphone, xylophone, glockenspiel, celesta, tubular bells, music box, kalimba, steel pan, bells, singing bowl, electric piano | **Modal synthesis**: each instrument's measured resonant modes, each a sine with its own decay | Struck bars and bells really are a handful of decaying modes, so this is the instrument's physics rather than an imitation |
-| Harp, harpsichord, nylon guitar, pizzicato, koto | **Karplus–Strong** string modelling with fractional-delay tuning and body resonances | A plucked string is a delay line losing energy; tuned this way it stays within a few cents |
-| Acoustic kit, orchestral and hand percussion | **Modelled membranes, bars and cymbals** | Drumheads ring at known mode ratios; cymbals are filtered noise plus inharmonic partials |
-| Synth, Silly and Experimental patches | Subtractive and FM synthesis | They were never meant to sound like anything real |
+| **Recorded** Steinway B, 21 notes at three dynamics | Grand and Backwards Piano | A piano is the one instrument a practical model can't make convincing |
+| **Modal synthesis**: each instrument's measured resonant modes, each a sine with its own decay | Electric piano, singing bowl, Bash mode's mallets | Struck bars, tines and bowls really are a handful of decaying modes, so this is the instrument's physics rather than an imitation |
+| **Karplus–Strong** strings with fractional-delay tuning and body resonances | Harp, clavinet, funk bass | A plucked or struck string is a delay line losing energy; tuned this way it stays within a cent |
+| **Modelled membranes, bars and cymbals** | Acoustic, orchestral, hand percussion and drum & bass kits | Drumheads ring at known mode ratios; cymbals are filtered noise plus inharmonic partials |
+| Subtractive and FM synthesis | The synth, DnB and techno patches, the 808 and techno kits | They were never meant to sound like anything real |
 
 Every acoustic sound treats velocity as more than volume: a harder hit brings
-up the upper modes, the beater click, the snare wires, exactly as on the real
-instrument. Real-instrument behaviour is modelled where it matters to playing:
-the top piano octaves have no dampers and ring on as a real piano's do; a
-marimba bar keeps ringing after you release the key; closing the hi-hat chokes
-an open one.
+up the upper modes, the beater click, the snare wires, the slap on the funk
+bass, exactly as on the real instrument. Real-instrument behaviour is modelled
+where it matters to playing: the top piano octaves have no dampers and ring on
+as a real piano's do; a clavinet's notes stop the instant the key comes up;
+closing the hi-hat chokes an open one.
 
 `node tools/sound-check.mjs` renders every patch and pad and measures it —
-tuning, clipping at full velocity, silence, balance between patches, and
-whether a harder hit is actually brighter. CI runs it on every push. Most
-modelled instruments measure within 2 cents of true pitch and none worse than
-8; the piano reads up to 17 cents flat in the bass, which is the stretch tuning
+tuning, clipping at full velocity, silence, balance between patches, whether a
+harder hit is actually brighter, whether every note's ending fades rather than
+clicks, and whether a dense passage at full volume ever passes full scale. CI runs it on every push. The
+modelled instruments measure within 2 cents of true pitch; the piano reads up to 17 cents flat in the bass, which is the stretch tuning
 a concert piano is given, not an error.
 
 ### The piano recordings
