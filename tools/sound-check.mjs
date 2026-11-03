@@ -242,7 +242,84 @@ async function main() {
         pads.push(row);
       }
     }
-    return { patches, pads };
+    /* ---- note endings ------------------------------------------------------
+       A source that stops while it can still be heard leaves a step in the
+       waveform: a click. This plays a loud low note, lets it go, and measures
+       what is left at the instant the sound is cut, relative to its peak. */
+    const endings = [];
+    for (const patch of PRESETS) {
+      // Long enough for a ring-out instrument to finish on its own.
+      const seconds = patch.damp === null || patch.engine === 'modal' ? 16 : 5;
+      const { mono } = await render(seconds, (ctx) => {
+        const v = createVoice(ctx, ctx.destination, patch, () => {});
+        v.start(36, 1, 0, { macros: defaultMacros(), cutoffMacro: patch.macroCutoff ?? 0.75 });
+        v.release(0.25);
+      });
+      let last = mono.length - 1;
+      while (last > 0 && mono[last] === 0) last--;
+      const peak = peakOf(mono);
+      const level = (from, to) => { let m = 0; for (let i = Math.max(0, from); i <= to; i++) m = Math.max(m, Math.abs(mono[i])); return m; };
+      // A click is a step: the sound is about as loud a fifth of a millisecond
+      // before it stops as it was five milliseconds before. A fade that reaches
+      // zero is far quieter at the end than just before it.
+      const step = level(last - 8, last);
+      const before = level(last - Math.floor(SR * 0.005), last - Math.floor(SR * 0.004));
+      const db = peak > 0 ? 20 * Math.log10(step / peak + 1e-9) : -180;
+      const abrupt = before > 0 && step / before > 0.25;
+      endings.push({ id: patch.id, name: patch.name, db, abrupt, stillSounding: last >= mono.length - 2, endsAt: last / SR });
+    }
+
+    /* ---- under load ------------------------------------------------------
+       Each voice is fine on its own; what matters live is the sum. This plays
+       fast, loud chords with the pedal down, plus drums, through the app's own
+       master chain — mix, EQ, limiter, master gain — and checks what reaches
+       the speaker never passes full scale. */
+    const { Engine } = await import('/js/audio/engine.js');
+    const { PolySynth } = await import('/js/audio/polysynth.js');
+    const { getPreset } = await import('/js/audio/presets.js');
+    const { getKit } = await import('/js/audio/kits.js');
+    const load = [];
+    for (const id of ['grand-piano', 'honky-tonk', 'marimba', 'concert-harp', 'supersaw', 'wobble-bass', 'drawbar-organ']) {
+      const seconds = 6;
+      const e = new Engine();
+      e._masterVolume = 1;   // the worst case: volume all the way up
+      e.ctx = new OfflineAudioContext(2, SR * seconds, SR);
+      e._buildGraph();
+      e.ready = true;
+      const strip = e.channel('synth', { reverb: 0.3, delay: 0.12 });
+      const drums = e.channel('drums', { reverb: 0.1, delay: 0 });
+      const synth = new PolySynth(e.ctx, strip, null);
+      synth.polyphony = 16;
+      const patch = getPreset(id);
+      synth.setPatch(patch);
+      synth.setSustain(true);
+      const kit = getKit('acoustic');
+      const chords = [[36, 48, 60, 64, 67, 72], [41, 53, 65, 69, 72, 77], [43, 55, 67, 71, 74, 79], [38, 50, 62, 65, 69, 74]];
+      let n = 0;
+      for (let t = 0.05; t < seconds - 1; t += 0.11, n++) {
+        const chord = chords[Math.floor(n / 4) % chords.length];
+        const take = n % 2 ? chord.slice(1) : chord;
+        take.forEach((p, i) => synth.noteOn(p, 1, { key: `${n}:${i}`, time: t + i * 0.004 }));
+        take.forEach((p, i) => synth.noteOff(`${n}:${i}`, { time: t + 0.09 }));
+        triggerPad(e.ctx, drums.input, kit.pads[n % 4 === 0 ? 0 : n % 4 === 2 ? 1 : 4], 1, t);
+        if (n % 8 === 0) triggerPad(e.ctx, drums.input, kit.pads[7], 1, t);
+      }
+      const began = performance.now();
+      const buf = await e.ctx.startRendering();
+      const speed = seconds / ((performance.now() - began) / 1000);
+      let peak = 0;
+      let over = 0;
+      for (let c = 0; c < 2; c++) {
+        for (const x of buf.getChannelData(c)) {
+          const a = Math.abs(x);
+          if (a > peak) peak = a;
+          if (a > 1) over++;
+        }
+      }
+      load.push({ id, name: patch.name, peak, over, speed });
+    }
+
+    return { patches, pads, endings, load };
   }, { INHARMONIC: [...INHARMONIC], DETUNED: [...DETUNED], TOL: TUNING_TOLERANCE_CENTS, RTOL: RECORDED_TOLERANCE_CENTS });
 
   await browser.close();
@@ -271,7 +348,22 @@ async function main() {
     for (const why of p.problems) console.log(`         - ${why}`);
   }
 
-  const failed = [...report.patches, ...report.pads].filter((p) => p.problems.length).length + errors.length;
+  console.log('\nNote endings (what is left when the sound is cut; above -60 dB is a click)\n');
+  for (const e of report.endings) {
+    e.problems = [];
+    if (e.stillSounding) e.problems.push('still sounding after the render ended');
+    else if (e.abrupt && e.db > -60) e.problems.push(`cut while still audible: ${e.db.toFixed(0)} dB`);
+    if (e.problems.length) console.log(`  FAIL ${e.name.padEnd(18)} ${e.problems[0]} (at ${e.endsAt.toFixed(2)}s)`);
+  }
+  console.log(`  ${report.endings.filter((e) => !e.problems.length).length}/${report.endings.length} end cleanly`);
+
+  console.log('\nUnder load (fast loud chords, pedal down, drums, through the master chain)\n');
+  for (const l of report.load) {
+    l.problems = l.peak > 1 ? [`${l.over} samples over full scale, peak ${l.peak.toFixed(2)}`] : [];
+    console.log(`  ${l.problems.length ? 'FAIL' : 'ok  '} ${l.name.padEnd(18)} peak ${l.peak.toFixed(3)}  rendered ${l.speed.toFixed(1)}x realtime${l.over ? `  (${l.over} samples clipped)` : ''}`);
+  }
+
+  const failed = [...report.patches, ...report.pads, ...report.endings, ...report.load].filter((p) => p.problems.length).length + errors.length;
   for (const e of errors) console.log(`  page error: ${e}`);
   console.log(`\n${failed ? `${failed} problem(s)` : 'All sounds measured clean.'}`);
   process.exit(failed ? 1 : 0);

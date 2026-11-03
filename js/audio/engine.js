@@ -19,6 +19,29 @@ export function noiseBuffer(ctx) {
   return buf;
 }
 
+/**
+ * Unity below KNEE, then a smooth bend towards 1. The curve covers inputs of
+ * ±2 (a WaveShaper maps -1..1 onto its curve, so the input is halved first and
+ * the curve stores the doubled-domain result): even a signal twice full scale
+ * comes out under 1 rather than flat-topped.
+ */
+const KNEE = 0.8;
+export function safetyShape(x) {
+  const a = Math.abs(x);
+  if (a <= KNEE) return x;
+  const room = 1 - KNEE;
+  return Math.sign(x) * (KNEE + room * Math.tanh((a - KNEE) / room));
+}
+
+function makeSafetyCurve(n = 4096) {
+  const curve = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    const x = (i / (n - 1)) * 4 - 2;   // the input this sample stands for
+    curve[i] = safetyShape(x) / 2;     // halved: the shaper's input is halved too
+  }
+  return curve;
+}
+
 export class Engine {
   constructor() {
     this.ctx = null;
@@ -98,6 +121,21 @@ export class Engine {
     this.masterGain = ctx.createGain();
     this.masterGain.gain.value = this._masterVolume;
 
+    /* The last word before the speaker. The compressor above can't stop a
+       hard attack: it needs a few milliseconds to react, and Chrome adds its
+       own make-up gain on top, so the first instant of a loud chord could leave
+       it above full scale and be clipped flat by the device. This curve is
+       exact unity up to 0.8 and then bends smoothly towards 1, so nothing
+       ordinary is touched and nothing extraordinary can square off. */
+    this.safetyIn = ctx.createGain();
+    this.safetyIn.gain.value = 0.5;
+    this.safetyShaper = ctx.createWaveShaper();
+    this.safetyShaper.curve = makeSafetyCurve();
+    this.safetyShaper.oversample = '4x';
+    this.safety = ctx.createGain();
+    this.safety.gain.value = 2;
+    this.safetyIn.connect(this.safetyShaper).connect(this.safety);
+
     this.analyser = ctx.createAnalyser();
     this.analyser.fftSize = 1024;
     this.analyser.smoothingTimeConstant = 0.7;
@@ -110,13 +148,14 @@ export class Engine {
     this.lowShelf.connect(this.highShelf);
     this.highShelf.connect(this.limiter);
     this.limiter.connect(this.masterGain);
-    this.masterGain.connect(ctx.destination);
-    this.masterGain.connect(this.analyser);
+    this.masterGain.connect(this.safetyIn);
+    this.safety.connect(ctx.destination);
+    this.safety.connect(this.analyser);
 
     // Separate tap for the recorder so takes capture the master mix.
     if (typeof ctx.createMediaStreamDestination === 'function') {
       this.recordDest = ctx.createMediaStreamDestination();
-      this.masterGain.connect(this.recordDest);
+      this.safety.connect(this.recordDest);
     }
   }
 

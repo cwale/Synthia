@@ -198,11 +198,27 @@ export class SynthVoice {
 
       let target;
       if (spec.target === 'filter') {
-        depth.gain.value = amount * 2000;
-        target = this.filter.frequency;
+        /* In cents, not hertz. Added in hertz, a deep wobble on a low note took
+           the cutoff below zero — at C2 a 40 Hz cutoff swinging 1500 Hz either
+           way — and the filter went unstable and was reset to silence: an
+           abrupt dropout mid-note. In cents the sweep is musical, an octave or
+           two either side, and can never cross zero. */
+        depth.gain.value = amount * 2400;
+        target = this.filter.detune;
       } else if (spec.target === 'amp') {
-        depth.gain.value = amount * 0.3;
-        target = this.amp.gain;
+        /* A tremolo stage after the envelope, relative to it. Added straight to
+           the envelope's gain, the wobble kept sounding after the note had
+           faded to nothing, and was then cut off with a click. Scaled by the
+           peak level, it modulates exactly as deeply as before while the note
+           is held, and fades out with it. */
+        const trem = ctx.createGain();
+        trem.gain.value = 1;
+        this.amp.disconnect(this.panner);
+        this.amp.connect(trem).connect(this.panner);
+        this._nodes.push(trem);
+        const peak = (p.gain ?? 0.2) * (1 - (p.vel?.amp ?? 0.8) + (p.vel?.amp ?? 0.8) * velocity);
+        depth.gain.value = (amount * 0.3) / Math.max(0.02, peak);
+        target = trem.gain;
       } else if (spec.target === 'pan') {
         depth.gain.value = clamp(amount, 0, 1);
         target = this.panner.pan;
@@ -292,7 +308,10 @@ export class SynthVoice {
   }
 
   /** Fast fade used for voice stealing and panic — avoids a click. */
-  kill(time, fade = 0.012) {
+  /* Used for voice stealing and retriggering. 20 ms is still too quick to hear
+     as a fade, but a loud bass note stopped in 12 ms could tick, and with the
+     pedal down and all voices in use, stealing happens on every new note. */
+  kill(time, fade = 0.02) {
     if (this.dead) return;
     const g = this.amp.gain;
     cancelAndHold(g, time);

@@ -118,12 +118,21 @@ class AcousticVoice {
     this._released = true;
     const g = this.amp.gain;
     cancelAndHold(g, time);
-    // Dampers don't stop a string dead, they bleed the energy out quickly.
-    g.setTargetAtTime(0, time, Math.max(0.005, r / 4));
-    this._scheduleEnd(Math.min(this._naturalEnd ?? Infinity, time + r + 0.05));
+    /* Dampers don't stop a string dead, they bleed the energy out: an
+       exponential fall, heard as ending at about `r`. The source must outlive
+       the fall, though. Stopped at r with the curve a quarter of r long, the
+       note was still at -35 dB when it was cut — an audible click on every
+       released low note — and the teardown that disconnects the nodes did the
+       same in real time. With a sixth of r, and the stop at 1.6 r, what's
+       left at the cut is below -80 dB. */
+    g.setTargetAtTime(0, time, Math.max(0.004, r / 6));
+    this._scheduleEnd(Math.min(this._naturalEnd ?? Infinity, time + r * 1.6 + 0.02));
   }
 
-  kill(time, fade = 0.012) {
+  /* Used for voice stealing and retriggering. 20 ms is still too quick to hear
+     as a fade, but a loud bass note stopped in 12 ms could tick, and with the
+     pedal down and all voices in use, stealing happens on every new note. */
+  kill(time, fade = 0.02) {
     if (this.dead) return;
     const g = this.amp.gain;
     cancelAndHold(g, time);
@@ -321,7 +330,10 @@ export class ModalVoice extends AcousticVoice {
       // Each octave above the fundamental loses level unless the mallet is hard.
       const tilt = Math.pow(0.35 + hardness * 0.65, Math.max(0, Math.log2(ratio)));
       const amp = level * gain * tilt;
-      const decay = clamp(t60 * pitchDecay, 0.04, 20);
+      // Long bars and bells are shortened to fit, never cut off: a mode still
+      // ringing when the voice is stopped is a click.
+      const attack = m.attack ?? 0.0015;
+      const decay = clamp(t60 * pitchDecay, 0.04, (m.maxLength ?? 12) - attack - 0.05);
 
       const osc = this._source(ctx.createOscillator());
       osc.type = 'sine';
@@ -329,7 +341,6 @@ export class ModalVoice extends AcousticVoice {
       osc._cents = 0;
       osc.detune.value = this._bend;
       const g = this._track(ctx.createGain());
-      const attack = m.attack ?? 0.0015;
       g.gain.setValueAtTime(0, time);
       g.gain.linearRampToValueAtTime(amp, time + attack);
       g.gain.exponentialRampToValueAtTime(Math.max(1e-5, amp * 0.001), time + attack + decay);
@@ -356,7 +367,7 @@ export class ModalVoice extends AcousticVoice {
       n.start(time, Math.random() * 0.5);
     }
 
-    return Math.min(longest, m.maxLength ?? 12);
+    return longest + 0.05;
   }
 }
 
