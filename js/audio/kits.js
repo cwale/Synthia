@@ -172,7 +172,7 @@ export const KITS = [
       { name: 'Marimba', type: 'marimba', note: 67, color: C.tuned },
       { name: 'Block', type: 'woodblock', color: C.perc },
 
-      { name: 'Big drum', type: 'kick', tune: 48, decay: 0.6, gain: 0.85, color: C.kick },
+      { name: 'Big drum', type: 'kick', tune: 48, decay: 0.6, color: C.kick },
       { name: 'Snare', type: 'snare', color: C.snare },
       { name: 'Clap', type: 'clap', color: C.snare },
       { name: 'Cymbal', type: 'cymbal', decay: 1.6, color: C.metal },
