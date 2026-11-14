@@ -905,6 +905,83 @@ for (const [name, size] of [
   });
 }
 
+// The installed Android app: a native shell provides window.SynthiaNative.
+// A fake one stands in for it here, recording what the page asks of it.
+await check('in the Android app: reconnects natively, plays, keeps running hidden', async () => {
+  const appCtx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+  await appCtx.addInitScript(() => {
+    window.__nativeCalls = [];
+    window.SynthiaNative = {
+      platform: 'android',
+      persistent: true,
+      rememberedId: () => 'ble:AA:BB:CC:DD:EE:FF',
+      listDevices: async () => { window.__nativeCalls.push('list'); return [{ id: 'ble:AA:BB:CC:DD:EE:FF', name: 'SMK-37' }]; },
+      connect: async (id) => {
+        window.__nativeCalls.push(`connect ${id}`);
+        setTimeout(() => window.__synthiaMidiStatus({ status: 'connected', name: 'SMK-37' }), 20);
+      },
+      disconnect: () => window.__nativeCalls.push('disconnect'),
+    };
+  });
+  const app = await appCtx.newPage();
+  const errs = [];
+  app.on('pageerror', (e) => errs.push(e.message));
+  await app.goto(`http://127.0.0.1:${PORT}/index.html`, { waitUntil: 'networkidle' });
+  await app.click('#splash-start');
+  await app.waitForSelector('#app:not([hidden])', { timeout: 10000 });
+  await app.waitForTimeout(600);
+
+  const res = await app.evaluate(async () => {
+    const { bus } = await import('./js/state.js');
+    const keys = [];
+    bus.on('midi:key-on', ({ note }) => keys.push(note));
+    // A note arriving the way the shell delivers it.
+    window.__synthiaMidi([0x90, 60, 100]);
+    window.__synthiaMidi([0x80, 60, 0]);
+    await new Promise((r) => setTimeout(r, 100));
+
+    // Going out of sight, as when the screen turns off.
+    Object.defineProperty(document, 'hidden', { configurable: true, get: () => true });
+    Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' });
+    document.dispatchEvent(new Event('visibilitychange'));
+    await new Promise((r) => setTimeout(r, 300));
+
+    return {
+      calls: window.__nativeCalls,
+      kind: window.synthia.hub.active?.kind,
+      connected: window.synthia.hub.connected,
+      keys,
+      audio: window.synthia.engine.ctx.state,
+    };
+  });
+  await appCtx.close();
+  console.log('        ', JSON.stringify(res));
+  eq(errs, [], 'no page errors in the app');
+  assert(res.calls.includes('connect ble:AA:BB:CC:DD:EE:FF'), `should reopen the remembered keyboard: ${res.calls}`);
+  assert(!res.calls.includes('list'), 'reconnecting a remembered keyboard should not need a scan');
+  eq(res.kind, 'native', 'the native transport should be active');
+  assert(res.connected, 'should report connected');
+  eq(res.keys, [60], 'a note from the shell should play the synth');
+  eq(res.audio, 'running', 'audio must keep running when the app is hidden');
+});
+
+// And in a browser tab, the original behaviour stands: hidden means stopped.
+await check('in a browser tab, hiding still stops the audio', async () => {
+  const state = await page.evaluate(async () => {
+    Object.defineProperty(document, 'hidden', { configurable: true, get: () => true });
+    document.dispatchEvent(new Event('visibilitychange'));
+    await new Promise((r) => setTimeout(r, 300));
+    const s = window.synthia.engine.ctx.state;
+    Object.defineProperty(document, 'hidden', { configurable: true, get: () => false });
+    document.dispatchEvent(new Event('visibilitychange'));
+    await new Promise((r) => setTimeout(r, 300));
+    return { hidden: s, back: window.synthia.engine.ctx.state };
+  });
+  console.log('        ', JSON.stringify(state));
+  eq(state.hidden, 'suspended', 'a hidden browser tab should suspend audio');
+  eq(state.back, 'running', 'and resume when visible again');
+});
+
 await check('settings persist across a reload', async () => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.evaluate(() => {

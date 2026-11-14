@@ -3,10 +3,15 @@ node_modules/
 package-lock.json
 capacitor.config.json
 ios/
-android/
 
 .DS_Store
 *.log
 
 # Patches generated to move work out of a session that cannot push
 *.patch
+
+# Android build output (the project itself is tracked)
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties

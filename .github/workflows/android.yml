@@ -1,0 +1,63 @@
+name: Android app
+
+# The app loads the live site, so web changes reach it without a new APK.
+# A new APK is only needed when the Android shell itself changes.
+on:
+  push:
+    branches: [main]
+    paths: ['android/**', '.github/workflows/android.yml']
+  pull_request:
+    paths: ['android/**', '.github/workflows/android.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: write   # to publish the APK as a release
+
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      # The runner image ships the Android SDK; this just pins Gradle.
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.14.3'
+
+      - name: Build and lint
+        env:
+          # Rises with every run, so each APK installs over the last.
+          SYNTHIA_VERSION_CODE: ${{ github.run_number }}
+          SYNTHIA_VERSION_NAME: 1.${{ github.run_number }}
+        run: gradle -p android --no-daemon assembleRelease lintRelease
+
+      - name: Name the APK
+        run: cp android/app/build/outputs/apk/release/app-release.apk synthia.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: synthia-apk
+          path: synthia.apk
+          retention-days: 14
+
+      # Published as the latest release, so this link always fetches the
+      # newest build: https://github.com/<owner>/<repo>/releases/latest/download/synthia.apk
+      - name: Publish
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "android-${{ github.run_number }}" synthia.apk \
+            --target "${{ github.sha }}" \
+            --title "Synthia for Android 1.${{ github.run_number }}" \
+            --notes "Install on the phone: open this page there, download synthia.apk and open it. See docs/ANDROID.md." \
+            --latest

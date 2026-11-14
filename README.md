@@ -94,7 +94,15 @@ browser, and this is the one place the platforms genuinely differ.
 
 ### Android
 
-Two independent routes, and the first is the more reliable one:
+**To keep playing with the screen off, install the app**:
+[download synthia.apk](https://github.com/cwale/Synthia/releases/latest/download/synthia.apk)
+on the phone and open it. A browser tab stops when the screen turns off; the
+app keeps running behind a notification, connects to the keyboard natively,
+and still loads the live site, so updates arrive without a reinstall. See
+[docs/ANDROID.md](docs/ANDROID.md).
+
+In the browser there are two independent routes, and the first is the more
+reliable one:
 
 1. **Connect over Bluetooth** — put the keyboard in pairing mode, tap *Scan*,
    pick it. This talks BLE-MIDI to the keyboard directly and bypasses Android's
@@ -312,6 +320,8 @@ tools/sound-check.mjs measures every sound (tuning, clipping, balance)
 tools/make-piano-samples.sh  rebuilds samples/piano from VCSL
 docs/FEASIBILITY.md   platform research and the native-vs-web trade-off
 docs/IOS.md           building the iOS wrapper
+docs/ANDROID.md       the Android app: installing, staying alive, building
+android/              the Android app (Java): WebView, native MIDI, foreground service
 ```
 
 ## Running locally

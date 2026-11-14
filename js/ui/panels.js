@@ -133,7 +133,9 @@ function buildConnect(app, body, sheet) {
     ));
   }
 
-  if (caps.native) {
+  if (caps.native && window.SynthiaNative?.platform === 'android') {
+    actions.push(...buildNativeFinder(app, sheet));
+  } else if (caps.native) {
     actions.push(buttonRow(
       'Pair with the app',
       'Uses the built-in Bluetooth MIDI pairing sheet.',
@@ -187,7 +189,54 @@ function buildConnect(app, body, sheet) {
   )));
 }
 
+/* What the last search in the installed app found. Kept between redraws of
+   the sheet, since a search takes a few seconds and the sheet refreshes. */
+let nativeScan = { busy: false, devices: null };
+
+/**
+ * The installed Android app talks to the keyboard natively, so instead of the
+ * browser's Bluetooth chooser it searches itself and lists what it finds.
+ */
+function buildNativeFinder(app, sheet) {
+  const rows = [buttonRow(
+    'Find my keyboard',
+    'Switch the keyboard on, then search. It takes a few seconds.',
+    nativeScan.busy ? 'Searching…' : 'Search',
+    async () => {
+      if (nativeScan.busy) return;
+      nativeScan = { busy: true, devices: null };
+      sheet.refresh();
+      const devices = await app.hub.native.listDevices();
+      nativeScan = { busy: false, devices };
+      sheet.refresh();
+    },
+  )];
+
+  if (nativeScan.devices && !nativeScan.devices.length) {
+    rows.push(note('Nothing found. Check the keyboard is on and isn’t connected to another phone or app — Bluetooth MIDI devices only talk to one at a time.'));
+  }
+  for (const d of nativeScan.devices || []) {
+    const current = app.hub.active === app.hub.native && app.hub.native.deviceId === d.id && app.hub.connected;
+    rows.push(buttonRow(d.name || 'MIDI device', current ? 'Connected' : d.id.startsWith('ble:') ? 'Bluetooth' : 'Wired', current ? 'Connected' : 'Connect', async () => {
+      if (current) return;
+      const dev = await app.hub.connect({ kind: 'native', interactive: true, deviceId: d.id });
+      if (dev) {
+        settings.transport = 'native';
+        commit('transport');
+        toast(`Listening to ${d.name || 'your keyboard'}`, { kind: 'good' });
+      }
+      sheet.refresh();
+    }));
+  }
+  return rows;
+}
+
 function buildPlatformHelp(caps) {
+  if (caps.native && window.SynthiaNative?.platform === 'android') {
+    return group('Synthia for Android',
+      h('p.group__note', { html: 'The keyboard connects through Android’s own Bluetooth MIDI, and Synthia keeps playing with the screen off — the “Synthia is running” notification is what keeps it alive. Tap <b>Stop</b> on that notification to quit properly.' }),
+    );
+  }
   if (caps.native) {
     return group('This build', note('Running in the native shell, so Bluetooth MIDI is handled by the operating system.'));
   }
@@ -211,6 +260,7 @@ function buildPlatformHelp(caps) {
         'If you would rather use the system pairing: pair it in <b>Settings → Bluetooth</b> first, then tap <b>Enable</b> under Web MIDI. Note that some Android versions need a Bluetooth-MIDI helper app before the keyboard shows up as a MIDI port.',
         'Use the phone’s speaker or wired headphones. A Bluetooth speaker adds enough delay that playing in time becomes difficult.',
       ),
+      h('p.group__note', { html: 'A browser tab stops playing when the screen turns off. To keep playing, install the app: <a href="https://github.com/cwale/Synthia/releases/latest/download/synthia.apk" target="_blank" rel="noopener">download Synthia for Android</a> and open the file.' }),
     );
   }
 

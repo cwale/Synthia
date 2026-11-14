@@ -1,0 +1,75 @@
+plugins {
+    id 'com.android.application'
+}
+
+/* The web app is the repository root. It is bundled into the APK as a
+   fallback for when the phone is offline and has never loaded the live site;
+   normally the app loads the live site so web fixes arrive without a reinstall. */
+def webRoot = rootProject.file('..')
+def bundled = layout.buildDirectory.dir('generated/bundled-web')
+
+tasks.register('bundleWeb', Sync) {
+    from(webRoot) {
+        include 'index.html', 'manifest.webmanifest', 'sw.js', 'version.json'
+        include 'css/**', 'js/**', 'icons/**', 'samples/**'
+    }
+    into bundled.map { it.dir('www') }
+}
+
+android {
+    namespace 'io.github.cwale.synthia'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId 'io.github.cwale.synthia'
+        minSdk 26
+        targetSdk 35
+        // CI sets these, so every build installs over the last one.
+        versionCode((System.getenv('SYNTHIA_VERSION_CODE') ?: '1') as int)
+        versionName System.getenv('SYNTHIA_VERSION_NAME') ?: 'dev'
+    }
+
+    signingConfigs {
+        /* A fixed key, committed, so each new APK installs as an update over
+           the previous one instead of demanding an uninstall. It identifies
+           builds of this app to the phone; it protects nothing secret. See
+           docs/ANDROID.md. */
+        sideload {
+            storeFile file('sideload.jks')
+            storePassword 'synthia-sideload'
+            keyAlias 'synthia'
+            keyPassword 'synthia-sideload'
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.sideload
+        }
+        debug {
+            signingConfig signingConfigs.sideload
+        }
+    }
+
+    sourceSets {
+        main.assets.srcDirs += bundled
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    lint {
+        abortOnError true
+        checkReleaseBuilds true
+    }
+}
+
+tasks.named('preBuild') { dependsOn 'bundleWeb' }
+
+dependencies {
+    implementation 'androidx.core:core:1.13.1'
+    implementation 'androidx.webkit:webkit:1.12.1'
+}
