@@ -4,7 +4,7 @@
    and must not care whether there is signal, so freshness comes second — a new
    version is picked up on the next launch. */
 
-const VERSION = 'synthia-db3d39b';
+const VERSION = 'synthia-506af64';
 
 /* Recordings get their own cache that survives deploys. The app cache above is
    replaced wholesale on every release, which is right for code and wrong for

@@ -85,7 +85,7 @@ export class MidiHub {
    * @param {boolean} opts.interactive true when called from a user gesture, which
    *   is required for the Bluetooth chooser and for MIDI permission prompts.
    */
-  async connect({ kind = settings.transport, interactive = false } = {}) {
+  async connect({ kind = settings.transport, interactive = false, deviceId = null } = {}) {
     const wanted = kind === 'auto' ? this._preferredKind() : kind;
     if (wanted === 'none') return null;
 
@@ -113,7 +113,7 @@ export class MidiHub {
         return dev;
       }
 
-      const dev = await transport.connect({ deviceId: settings.lastDevice.id || 'all' });
+      const dev = await transport.connect({ deviceId: deviceId || settings.lastDevice.id || 'all' });
       if (dev) this._remember(dev);
       return dev;
     } catch (err) {

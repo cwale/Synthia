@@ -3,8 +3,8 @@
    site's content, so it changes exactly when the code does. */
 
 export const VERSION = {
-  id: 'db3d39b',
-  builtAt: '2026-11-03T13:19:57Z',
+  id: '506af64',
+  builtAt: '2026-11-14T12:58:16Z',
 };
 
 /** "a1b2c3d · 20 Aug 14:32" for the splash, or just "dev" from an unstamped tree. */

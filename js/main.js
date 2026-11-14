@@ -173,11 +173,15 @@ class App {
    */
   async tryReconnect() {
     if (!settings.autoReconnect) return;
-    if (settings.transport === 'auto' || settings.transport === 'none') return;
+    // In the installed app the shell remembers the keyboard itself and needs
+    // no permission prompt to reopen it, so a fresh install still reconnects.
+    const native = this.hub.native.available && this.hub.native.rememberedId;
+    if (!native && (settings.transport === 'auto' || settings.transport === 'none')) return;
 
     const dev = await Promise.race([
-      this.hub.connect({ interactive: false }).catch(() => null),
-      new Promise((resolve) => setTimeout(() => resolve(null), 5000)),
+      this.hub.connect({ kind: native ? 'native' : settings.transport, interactive: false }).catch(() => null),
+      // Opening a Bluetooth keyboard natively can take several seconds.
+      new Promise((resolve) => setTimeout(() => resolve(null), native ? 15000 : 5000)),
     ]);
     if (dev) toast(`Reconnected to ${dev.name || 'keyboard'}`, { kind: 'good' });
   }
@@ -602,6 +606,12 @@ class App {
     /* ---- lifecycle ---- */
     document.addEventListener('visibilitychange', async () => {
       if (document.hidden) {
+        /* In a browser tab, going out of sight stops everything: the page may
+           never hear a key come up, and a hidden tab shouldn't be making noise.
+           The installed app exists precisely to keep playing with the screen
+           off — its foreground service keeps it alive and the keyboard
+           connection is native — so there nothing stops. */
+        if (window.SynthiaNative?.persistent) return;
         this.panic();
         await engine.suspend();
       } else {

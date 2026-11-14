@@ -72,10 +72,32 @@ export class NativeMidiTransport {
     }
   }
 
+  /** The device the shell last connected to, if it remembers one. */
+  get rememberedId() {
+    try {
+      return window.SynthiaNative?.rememberedId?.() || null;
+    } catch {
+      return null;
+    }
+  }
+
   async connect({ deviceId } = {}) {
     if (!this.available) throw new Error('No native MIDI bridge in this build.');
     this.status = 'connecting';
     this.onStatus?.({ kind: this.kind, status: 'connecting', detail: '', name: this._name });
+
+    /* A shell id ("ble:<address>", "midi:<n>") can be opened directly, with no
+       scan: that is what makes reconnecting at launch quick. Without one, use
+       whatever the shell remembers, and only then go looking. */
+    const known = /^(ble|midi):/.test(deviceId || '') ? deviceId : this.rememberedId;
+    if (known) {
+      await window.SynthiaNative.connect(known);
+      this._id = known;
+      this.status = 'connected';
+      this.onStatus?.({ kind: this.kind, status: 'connected', detail: '', name: this._name });
+      return { id: known, name: this._name };
+    }
+
     const devices = await this.listDevices();
     const target = devices.find((d) => d.id === deviceId) || devices[0];
     if (!target) {
